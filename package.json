@@ -1,0 +1,54 @@
+{
+  "name": "google-imagine-mcp-server",
+  "version": "0.1.0",
+  "description": "MCP Server for Google Imagine image generation",
+  "type": "module",
+  "main": "build/index.js",
+  "bin": {
+    "google-imagine-mcp-server": "build/index.js"
+  },
+  "scripts": {
+    "build": "npx tsc",
+    "dev": "npx tsx src/index.ts",
+    "start": "node build/index.js",
+    "prepublishOnly": "npm run build",
+    "postinstall": "npm run build || echo 'Build failed, but continuing...'"
+  },
+  "files": [
+    "build/",
+    "src/",
+    "README.md",
+    "package.json",
+    "tsconfig.json"
+  ],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.6.0",
+    "axios": "^1.6.0",
+    "typescript": "^5.8.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "mcp",
+    "google-imagine",
+    "image-generation",
+    "ai",
+    "claude-desktop",
+    "model-context-protocol"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/google-imagine-mcp-server.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/google-imagine-mcp-server/issues"
+  },
+  "homepage": "https://github.com/yourusername/google-imagine-mcp-server#readme"
+}
