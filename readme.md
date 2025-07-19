@@ -30,7 +30,7 @@ Google ImagineのAPIを使用して画像を生成するMCP（Model Context Prot
 
 ```bash
 # プロジェクトをクローンまたはダウンロード
-git clone https://github.com/ex-takashima/google-imagine-mcp-server.git
+git clone <repository-url>
 cd google-imagine-mcp-server
 
 # 依存関係をインストール
@@ -40,16 +40,52 @@ npm install
 npm run build
 ```
 
-### 3. グローバルインストール（推奨）
+### 3. インストール方法の選択
+
+以下のいずれかの方法でインストールできます：
+
+#### 🎯 方法A: npm link（開発・テスト用）
 
 ```bash
-# グローバルに利用可能にする
+# プロジェクトディレクトリで
 npm link
 
-# または、パッケージ化してインストール
-npm pack
-npm install -g ./google-imagine-mcp-server-0.1.0.tgz
+# 確認
+google-imagine-mcp-server --version
 ```
+
+#### 📦 方法B: ローカルパッケージ（推奨）
+
+```bash
+# パッケージを作成
+npm pack
+
+# グローバルインストール（Windows: PowerShellを管理者として実行）
+npm install -g ./google-imagine-mcp-server-0.1.0.tgz
+
+# 確認
+google-imagine-mcp-server --version
+```
+
+#### 🌐 方法C: 直接パス指定（バックアップ案）
+
+グローバルインストールで問題がある場合は、Claude Desktop設定で直接パスを指定：
+
+```json
+{
+  "mcpServers": {
+    "google-imagine": {
+      "command": "node",
+      "args": ["C:\\projects\\google-imagine-mcp-server\\build\\index.js"],
+      "env": {
+        "GOOGLE_API_KEY": "your-api-key-here"
+      }
+    }
+  }
+}
+```
+
+**💡 推奨**: 方法Bを試して、問題があれば方法Cを使用してください。
 
 ### 4. Claude Desktop での設定
 
