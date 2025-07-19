@@ -12,7 +12,7 @@ import fs from 'fs/promises';
 import path from 'path';
 
 // Google imagen API の設定
-const GOOGLE_IMAGEN_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:generateImage';
+const GOOGLE_IMAGEN_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${process.env.GOOGLE_IMAGEN_MODEL || 'imagen-3.0-generate-001'}:generateImage`;
 
 interface GoogleImagenRequest {
   prompt: string;
@@ -29,6 +29,21 @@ interface GoogleImagenResponse {
     mimeType: string;
   }>;
 }
+
+
+interface GenerateImageArgs {
+  prompt: string;
+  output_path?: string;
+  safety_level?: "BLOCK_NONE" | "BLOCK_ONLY_HIGH" | "BLOCK_MEDIUM_AND_ABOVE" | "BLOCK_LOW_AND_ABOVE";
+  person_generation?: "DONT_ALLOW" | "ALLOW_ADULT" | "ALLOW_ALL";
+}
+
+interface ListGeneratedImagesArgs {
+  directory?: string;
+}
+
+const TOOL_GENERATE_IMAGE = "generate_image";
+const TOOL_LIST_GENERATED_IMAGES = "list_generated_images";
 
 class GoogleImagenMCPServer {
   private server: Server;
@@ -91,7 +106,7 @@ It should be run by an MCP client like Claude Desktop.
       return {
         tools: [
           {
-            name: "generate_image",
+            name: TOOL_GENERATE_IMAGE,
             description: "Generate an image using Google Imagen API",
             inputSchema: {
               type: "object",
@@ -119,7 +134,7 @@ It should be run by an MCP client like Claude Desktop.
             },
           },
           {
-            name: "list_generated_images",
+            name: TOOL_LIST_GENERATED_IMAGES,
             description: "List all generated images in the current directory",
             inputSchema: {
               type: "object",
@@ -140,10 +155,10 @@ It should be run by an MCP client like Claude Desktop.
 
       try {
         switch (name) {
-          case "generate_image":
-            return await this.generateImage(args);
-          case "list_generated_images":
-            return await this.listGeneratedImages(args);
+          case TOOL_GENERATE_IMAGE:
+            return await this.generateImage(args as GenerateImageArgs);
+          case TOOL_LIST_GENERATED_IMAGES:
+            return await this.listGeneratedImages(args as ListGeneratedImagesArgs);
           default:
             throw new McpError(
               ErrorCode.MethodNotFound,
@@ -162,7 +177,7 @@ It should be run by an MCP client like Claude Desktop.
     });
   }
 
-  private async generateImage(args: any) {
+  private async generateImage(args: GenerateImageArgs) {
     const {
       prompt,
       output_path = "generated_image.png",
@@ -211,7 +226,7 @@ It should be run by an MCP client like Claude Desktop.
         {
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${this.apiKey}`,
+            'x-goog-api-key': this.apiKey,
           },
           timeout: 30000, // 30秒のタイムアウト
         }
@@ -243,16 +258,30 @@ It should be run by an MCP client like Claude Desktop.
     } catch (error) {
       if (axios.isAxiosError(error)) {
         const errorMessage = error.response?.data?.error?.message || error.message;
+        const errorCode = error.response?.status;
+
         if (process.env.DEBUG) {
           console.error(`[DEBUG] API Error: ${errorMessage}`);
+          console.error(`[DEBUG] API Status Code: ${errorCode}`);
         }
-        throw new Error(`Google Imagen API error: ${errorMessage}`);
+
+        if (errorCode === 401 || errorCode === 403) {
+          throw new McpError(ErrorCode.Unauthenticated, `Google Imagen API authentication error: ${errorMessage}`);
+        }
+        if (errorCode === 400) {
+          throw new McpError(ErrorCode.InvalidParams, `Google Imagen API invalid parameter error: ${errorMessage}`);
+        }
+        if (errorCode && errorCode >= 500) {
+          throw new McpError(ErrorCode.UpstreamError, `Google Imagen API server error: ${errorMessage}`);
+        }
+        
+        throw new McpError(ErrorCode.InternalError, `Google Imagen API error: ${errorMessage}`);
       }
       throw error;
     }
   }
 
-  private async listGeneratedImages(args: any) {
+  private async listGeneratedImages(args: ListGeneratedImagesArgs) {
     const { directory = "." } = args;
 
     try {

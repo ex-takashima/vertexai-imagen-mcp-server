@@ -63,7 +63,7 @@ google-imagen-mcp-server --version
 npm pack
 
 # グローバルインストール（Windows: PowerShellを管理者として実行）
-npm install -g ./google-imagen-mcp-server-0.1.0.tgz
+npm install -g ./google-imagen-mcp-server-*.tgz
 
 # 確認
 google-imagen-mcp-server --version
@@ -104,7 +104,8 @@ Claude Desktop の設定ファイルを編集します：
     "google-Imagen": {
       "command": "google-imagen-mcp-server",
       "env": {
-        "GOOGLE_API_KEY": "AIzaSyBxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        "GOOGLE_API_KEY": "AIzaSyBxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        // "GOOGLE_IMAGEN_MODEL": "imagen-3.0-latest" // 必要に応じてモデルを変更
       }
     }
   }
@@ -306,6 +307,7 @@ npm pack
       "command": "google-imagen-mcp-server",
       "env": {
         "GOOGLE_API_KEY": "your-api-key",
+        "GOOGLE_IMAGEN_MODEL": "imagen-3.0-latest", // 任意でモデルを指定
         "DEBUG": "1"
       }
     }
@@ -395,6 +397,7 @@ google-imagen-mcp-server --version
 | 変数名 | 必須 | 説明 |
 |--------|-----|------|
 | `GOOGLE_API_KEY` | ✅ | Google Cloud APIキー |
+| `GOOGLE_IMAGEN_MODEL` | ❌ | 使用するImagenモデル名 (デフォルト: `imagen-3.0-generate-001`) |
 | `DEBUG` | ❌ | デバッグログの有効化（"1"で有効） |
 
 ## 🔒 セキュリティ注意事項
@@ -409,9 +412,9 @@ google-imagen-mcp-server --version
 Google Imagen は Vertex AI の一部として従量課金制です。詳細な料金については [Vertex AI Pricing](https://cloud.google.com/vertex-ai/pricing) をご確認ください。
 
 **価格例**（2025年7月時点）:
-- Imagen 3: 約 $0.04 per image
-- Imagen 4: 約 $0.04 per image
-- Imagen 4 Ultra: 約 $0.06 per image
+- **Imagen 3 (image generation)**: 約 $0.020 / 画像
+
+**注意**: 料金は変更される可能性があるため、必ず公式サイトをご確認ください。
 
 **無料枠について**:
 - **Google Cloud 無料トライアル**: 新規ユーザーは90日間で$300のクレジットを利用可能
