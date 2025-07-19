@@ -30,7 +30,7 @@ Google ImagineのAPIを使用して画像を生成するMCP（Model Context Prot
 
 ```bash
 # プロジェクトをクローンまたはダウンロード
-git clone https://github.com/ex-takashima/google-imagine-mcp-server.git
+git clone https://github.com/ex-takashima/google-imagen-mcp-server.git
 cd google-imagine-mcp-server
 
 # 依存関係をインストール

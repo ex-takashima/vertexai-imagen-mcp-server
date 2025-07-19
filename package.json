@@ -1,11 +1,11 @@
 {
-  "name": "google-imagine-mcp-server",
+  "name": "google-imagen-mcp-server",
   "version": "0.1.0",
-  "description": "MCP Server for Google Imagine image generation",
+  "description": "MCP Server for Google Imagen image generation",
   "type": "module",
   "main": "build/index.js",
   "bin": {
-    "google-imagine-mcp-server": "build/index.js"
+    "google-imagen-mcp-server": "build/index.js"
   },
   "scripts": {
     "build": "npx tsc",
@@ -24,7 +24,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^0.6.0",
     "axios": "^1.6.0",
-    "typescript": "^5.8.3"
+    "typescript": "^5.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
@@ -35,7 +35,7 @@
   },
   "keywords": [
     "mcp",
-    "google-imagine",
+    "google-imagen",
     "image-generation",
     "ai",
     "claude-desktop",
@@ -45,10 +45,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/google-imagine-mcp-server.git"
+    "url": "https://github.com/yourusername/google-imagen-mcp-server.git"
   },
   "bugs": {
-    "url": "https://github.com/yourusername/google-imagine-mcp-server/issues"
+    "url": "https://github.com/yourusername/google-imagen-mcp-server/issues"
   },
-  "homepage": "https://github.com/yourusername/google-imagine-mcp-server#readme"
+  "homepage": "https://github.com/yourusername/google-imagen-mcp-server#readme"
 }
