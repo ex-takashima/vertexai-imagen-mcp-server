@@ -15,7 +15,7 @@ import { GoogleAuth } from 'google-auth-library';
 // Google Imagen API の設定
 const GOOGLE_PROJECT_ID = process.env.GOOGLE_PROJECT_ID;
 const GOOGLE_REGION = process.env.GOOGLE_REGION || 'us-central1';
-const GOOGLE_IMAGEN_MODEL = process.env.GOOGLE_IMAGEN_MODEL || 'imagen-3.0-generate-001';
+const GOOGLE_IMAGEN_MODEL = process.env.GOOGLE_IMAGEN_MODEL || 'imagen-3.0-generate-002';
 
 const GOOGLE_IMAGEN_API_URL = `https://${GOOGLE_REGION}-aiplatform.googleapis.com/v1/projects/${GOOGLE_PROJECT_ID}/locations/${GOOGLE_REGION}/publishers/google/models/${GOOGLE_IMAGEN_MODEL}:predict`;
 
@@ -25,11 +25,26 @@ interface GoogleImagenRequest {
   }>;
   parameters?: {
     sampleCount?: number;
+    aspectRatio?: string;
     safetySettings?: Array<{
       category: string;
       threshold: string;
     }>;
     personGeneration?: string;
+  };
+}
+
+interface GoogleUpscaleRequest {
+  instances: Array<{
+    image?: {
+      bytesBase64Encoded: string;
+    };
+  }>;
+  parameters: {
+    mode: string;
+    upscaleConfig: {
+      upscaleFactor: string;
+    };
   };
 }
 
@@ -44,6 +59,25 @@ interface GoogleImagenResponse {
 interface GenerateImageArgs {
   prompt: string;
   output_path?: string;
+  aspect_ratio?: "1:1" | "3:4" | "4:3" | "9:16" | "16:9";
+  return_base64?: boolean;
+  safety_level?: "BLOCK_NONE" | "BLOCK_ONLY_HIGH" | "BLOCK_MEDIUM_AND_ABOVE" | "BLOCK_LOW_AND_ABOVE";
+  person_generation?: "DONT_ALLOW" | "ALLOW_ADULT" | "ALLOW_ALL";
+}
+
+interface UpscaleImageArgs {
+  input_path: string;
+  output_path?: string;
+  scale_factor?: "2" | "4";
+  return_base64?: boolean;
+}
+
+interface GenerateAndUpscaleImageArgs {
+  prompt: string;
+  output_path?: string;
+  aspect_ratio?: "1:1" | "3:4" | "4:3" | "9:16" | "16:9";
+  scale_factor?: "2" | "4";
+  return_base64?: boolean;
   safety_level?: "BLOCK_NONE" | "BLOCK_ONLY_HIGH" | "BLOCK_MEDIUM_AND_ABOVE" | "BLOCK_LOW_AND_ABOVE";
   person_generation?: "DONT_ALLOW" | "ALLOW_ADULT" | "ALLOW_ALL";
 }
@@ -53,11 +87,38 @@ interface ListGeneratedImagesArgs {
 }
 
 const TOOL_GENERATE_IMAGE = "generate_image";
+const TOOL_UPSCALE_IMAGE = "upscale_image";
+const TOOL_GENERATE_AND_UPSCALE_IMAGE = "generate_and_upscale_image";
 const TOOL_LIST_GENERATED_IMAGES = "list_generated_images";
 
 class GoogleImagenMCPServer {
   private server: Server;
   private auth: GoogleAuth;
+
+  private createImageResponse(imageBuffer: Buffer, mimeType: string, filePath?: string, additionalInfo?: string) {
+    const base64Data = imageBuffer.toString('base64');
+    const dataUrl = `data:${mimeType};base64,${base64Data}`;
+    
+    let responseText = additionalInfo || '';
+    if (filePath) {
+      responseText += `\nSaved to: ${filePath}`;
+    }
+    responseText += `\nFile size: ${imageBuffer.length} bytes\nMIME type: ${mimeType}`;
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: responseText
+        },
+        {
+          type: "image",
+          data: dataUrl,
+          mimeType: mimeType
+        }
+      ],
+    };
+  }
 
   constructor() {
     this.server = new Server(
@@ -112,7 +173,7 @@ Environment Variables:
   GOOGLE_PROJECT_ID               Google Cloud Project ID (required)
   GOOGLE_SERVICE_ACCOUNT_KEY      Service account JSON key (required)
   GOOGLE_REGION                   Region (optional, default: us-central1)
-  GOOGLE_IMAGEN_MODEL            Model name (optional, default: imagen-3.0-generate-001)
+  GOOGLE_IMAGEN_MODEL            Model name (optional, default: imagen-3.0-generate-002)
   DEBUG                          Enable debug logging
 
 This is an MCP (Model Context Protocol) server for Google Imagen image generation.
@@ -139,6 +200,84 @@ It should be run by an MCP client like Claude Desktop.
                 output_path: {
                   type: "string",
                   description: "Optional path to save the generated image (default: generated_image.png)",
+                },
+                aspect_ratio: {
+                  type: "string",
+                  enum: ["1:1", "3:4", "4:3", "9:16", "16:9"],
+                  description: "Aspect ratio of the generated image (default: 1:1). Options: 1:1 (square), 3:4 (portrait), 4:3 (landscape), 9:16 (tall), 16:9 (wide)",
+                },
+                return_base64: {
+                  type: "boolean",
+                  description: "Return image as base64 encoded data for display in MCP client instead of saving to file (default: false)",
+                },
+                safety_level: {
+                  type: "string",
+                  enum: ["BLOCK_NONE", "BLOCK_ONLY_HIGH", "BLOCK_MEDIUM_AND_ABOVE", "BLOCK_LOW_AND_ABOVE"],
+                  description: "Safety filter level (default: BLOCK_MEDIUM_AND_ABOVE)",
+                },
+                person_generation: {
+                  type: "string",
+                  enum: ["DONT_ALLOW", "ALLOW_ADULT", "ALLOW_ALL"],
+                  description: "Person generation policy (default: DONT_ALLOW)",
+                }
+              },
+              required: ["prompt"],
+            },
+          },
+          {
+            name: TOOL_UPSCALE_IMAGE,
+            description: "Upscale an existing image using Google Imagen API",
+            inputSchema: {
+              type: "object",
+              properties: {
+                input_path: {
+                  type: "string",
+                  description: "Path to the input image file to upscale",
+                },
+                output_path: {
+                  type: "string",
+                  description: "Optional path to save the upscaled image (default: upscaled_[original_name])",
+                },
+                scale_factor: {
+                  type: "string",
+                  enum: ["2", "4"],
+                  description: "Upscaling factor - 2x or 4x (default: 2)",
+                },
+                return_base64: {
+                  type: "boolean",
+                  description: "Return image as base64 encoded data for display in MCP client instead of saving to file (default: false)",
+                }
+              },
+              required: ["input_path"],
+            },
+          },
+          {
+            name: TOOL_GENERATE_AND_UPSCALE_IMAGE,
+            description: "Generate an image and automatically upscale it using Google Imagen API",
+            inputSchema: {
+              type: "object",
+              properties: {
+                prompt: {
+                  type: "string",
+                  description: "Text prompt describing the image to generate",
+                },
+                output_path: {
+                  type: "string",
+                  description: "Optional path to save the final upscaled image (default: generated_upscaled_image.png)",
+                },
+                aspect_ratio: {
+                  type: "string",
+                  enum: ["1:1", "3:4", "4:3", "9:16", "16:9"],
+                  description: "Aspect ratio of the generated image (default: 1:1). Options: 1:1 (square), 3:4 (portrait), 4:3 (landscape), 9:16 (tall), 16:9 (wide)",
+                },
+                scale_factor: {
+                  type: "string",
+                  enum: ["2", "4"],
+                  description: "Upscaling factor - 2x or 4x (default: 2)",
+                },
+                return_base64: {
+                  type: "boolean",
+                  description: "Return image as base64 encoded data for display in MCP client instead of saving to file (default: false)",
                 },
                 safety_level: {
                   type: "string",
@@ -178,6 +317,10 @@ It should be run by an MCP client like Claude Desktop.
         switch (name) {
           case TOOL_GENERATE_IMAGE:
             return await this.generateImage(args as unknown as GenerateImageArgs);
+          case TOOL_UPSCALE_IMAGE:
+            return await this.upscaleImage(args as unknown as UpscaleImageArgs);
+          case TOOL_GENERATE_AND_UPSCALE_IMAGE:
+            return await this.generateAndUpscaleImage(args as unknown as GenerateAndUpscaleImageArgs);
           case TOOL_LIST_GENERATED_IMAGES:
             return await this.listGeneratedImages(args as unknown as ListGeneratedImagesArgs);
           default:
@@ -202,6 +345,8 @@ It should be run by an MCP client like Claude Desktop.
     const {
       prompt,
       output_path = "generated_image.png",
+      aspect_ratio = "1:1",
+      return_base64 = false,
       safety_level = "BLOCK_MEDIUM_AND_ABOVE",
       person_generation = "DONT_ALLOW"
     } = args;
@@ -214,6 +359,7 @@ It should be run by an MCP client like Claude Desktop.
     if (process.env.DEBUG) {
       console.error(`[DEBUG] Generating image with prompt: ${prompt}`);
       console.error(`[DEBUG] Output path: ${output_path}`);
+      console.error(`[DEBUG] Aspect ratio: ${aspect_ratio}`);
       console.error(`[DEBUG] Safety level: ${safety_level}`);
     }
 
@@ -225,6 +371,7 @@ It should be run by an MCP client like Claude Desktop.
       ],
       parameters: {
         sampleCount: 1,
+        aspectRatio: aspect_ratio,
         safetySettings: [
           {
             category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
@@ -275,22 +422,36 @@ It should be run by an MCP client like Claude Desktop.
       const generatedImage = response.data.predictions[0];
       const imageBuffer = Buffer.from(generatedImage.bytesBase64Encoded, 'base64');
       
-      // ファイルに保存
-      const fullPath = path.resolve(output_path);
-      await fs.writeFile(fullPath, imageBuffer);
+      if (return_base64) {
+        // Base64モード: 画像データを直接返す
+        if (process.env.DEBUG) {
+          console.error(`[DEBUG] Returning image as base64 data`);
+        }
+        
+        return this.createImageResponse(
+          imageBuffer, 
+          generatedImage.mimeType,
+          undefined,
+          `Image generated successfully!\n\nPrompt: ${prompt}\nAspect ratio: ${aspect_ratio}`
+        );
+      } else {
+        // ファイル保存モード
+        const fullPath = path.resolve(output_path);
+        await fs.writeFile(fullPath, imageBuffer);
 
-      if (process.env.DEBUG) {
-        console.error(`[DEBUG] Image saved to: ${fullPath}`);
+        if (process.env.DEBUG) {
+          console.error(`[DEBUG] Image saved to: ${fullPath}`);
+        }
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Image generated successfully!\n\nPrompt: ${prompt}\nAspect ratio: ${aspect_ratio}\nSaved to: ${fullPath}\nFile size: ${imageBuffer.length} bytes\nMIME type: ${generatedImage.mimeType}`
+            }
+          ],
+        };
       }
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Image generated successfully!\n\nPrompt: ${prompt}\nSaved to: ${fullPath}\nFile size: ${imageBuffer.length} bytes\nMIME type: ${generatedImage.mimeType}`
-          }
-        ],
-      };
     } catch (error) {
       if (axios.isAxiosError(error)) {
         const errorMessage = error.response?.data?.error?.message || error.message;
@@ -313,6 +474,241 @@ It should be run by an MCP client like Claude Desktop.
         
         throw new McpError(ErrorCode.InternalError, `Google Imagen API error: ${errorMessage}`);
       }
+      throw error;
+    }
+  }
+
+  private async upscaleImage(args: UpscaleImageArgs) {
+    const {
+      input_path,
+      output_path,
+      scale_factor = "2",
+      return_base64 = false
+    } = args;
+
+    if (!input_path || typeof input_path !== 'string') {
+      throw new McpError(ErrorCode.InvalidParams, "input_path is required and must be a string");
+    }
+
+    // デバッグログ
+    if (process.env.DEBUG) {
+      console.error(`[DEBUG] Upscaling image: ${input_path}`);
+      console.error(`[DEBUG] Scale factor: ${scale_factor}`);
+    }
+
+    try {
+      // 入力画像ファイルを読み込み
+      const inputImageBuffer = await fs.readFile(input_path);
+      const inputImageBase64 = inputImageBuffer.toString('base64');
+
+      // 出力パスの設定
+      const parsedPath = path.parse(input_path);
+      const defaultOutputPath = path.join(parsedPath.dir, `upscaled_${scale_factor}x_${parsedPath.base}`);
+      const finalOutputPath = output_path || defaultOutputPath;
+
+      const requestBody: GoogleUpscaleRequest = {
+        instances: [
+          {
+            image: {
+              bytesBase64Encoded: inputImageBase64
+            }
+          }
+        ],
+        parameters: {
+          mode: "upscale",
+          upscaleConfig: {
+            upscaleFactor: scale_factor
+          }
+        }
+      };
+
+      // OAuth2アクセストークンを取得
+      const authClient = await this.auth.getClient();
+      const accessToken = await authClient.getAccessToken();
+
+      if (!accessToken.token) {
+        throw new Error('Failed to obtain access token');
+      }
+
+      const response = await axios.post<GoogleImagenResponse>(
+        GOOGLE_IMAGEN_API_URL,
+        requestBody,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken.token}`,
+          },
+          timeout: 60000, // アップスケーリングは時間がかかるため60秒に設定
+        }
+      );
+
+      if (!response.data.predictions || response.data.predictions.length === 0) {
+        throw new Error('Upscaling failed - no output received');
+      }
+
+      const upscaledImage = response.data.predictions[0];
+      const imageBuffer = Buffer.from(upscaledImage.bytesBase64Encoded, 'base64');
+      
+      if (return_base64) {
+        // Base64モード: 画像データを直接返す
+        if (process.env.DEBUG) {
+          console.error(`[DEBUG] Returning upscaled image as base64 data`);
+        }
+        
+        return this.createImageResponse(
+          imageBuffer, 
+          upscaledImage.mimeType,
+          undefined,
+          `Image upscaled successfully!\n\nInput: ${input_path}\nScale factor: ${scale_factor}x`
+        );
+      } else {
+        // ファイル保存モード
+        const fullPath = path.resolve(finalOutputPath);
+        await fs.writeFile(fullPath, imageBuffer);
+
+        if (process.env.DEBUG) {
+          console.error(`[DEBUG] Upscaled image saved to: ${fullPath}`);
+        }
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Image upscaled successfully!\n\nInput: ${input_path}\nScale factor: ${scale_factor}x\nSaved to: ${fullPath}\nFile size: ${imageBuffer.length} bytes\nMIME type: ${upscaledImage.mimeType}`
+            }
+          ],
+        };
+      }
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const errorMessage = error.response?.data?.error?.message || error.message;
+        const errorCode = error.response?.status;
+
+        if (process.env.DEBUG) {
+          console.error(`[DEBUG] API Error: ${errorMessage}`);
+          console.error(`[DEBUG] API Status Code: ${errorCode}`);
+        }
+
+        if (errorCode === 401 || errorCode === 403) {
+          throw new McpError(ErrorCode.InvalidRequest, `Google Imagen API authentication error: ${errorMessage}`);
+        }
+        if (errorCode === 400) {
+          throw new McpError(ErrorCode.InvalidParams, `Google Imagen API invalid parameter error: ${errorMessage}`);
+        }
+        if (errorCode && errorCode >= 500) {
+          throw new McpError(ErrorCode.InternalError, `Google Imagen API server error: ${errorMessage}`);
+        }
+        
+        throw new McpError(ErrorCode.InternalError, `Google Imagen API error: ${errorMessage}`);
+      }
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+        throw new McpError(ErrorCode.InvalidParams, `Input image file not found: ${input_path}`);
+      }
+      throw error;
+    }
+  }
+
+  private async generateAndUpscaleImage(args: GenerateAndUpscaleImageArgs) {
+    const {
+      prompt,
+      output_path = "generated_upscaled_image.png",
+      aspect_ratio = "1:1",
+      scale_factor = "2",
+      return_base64 = false,
+      safety_level = "BLOCK_MEDIUM_AND_ABOVE",
+      person_generation = "DONT_ALLOW"
+    } = args;
+
+    if (!prompt || typeof prompt !== 'string') {
+      throw new McpError(ErrorCode.InvalidParams, "prompt is required and must be a string");
+    }
+
+    // デバッグログ
+    if (process.env.DEBUG) {
+      console.error(`[DEBUG] Generating and upscaling image with prompt: ${prompt}`);
+      console.error(`[DEBUG] Aspect ratio: ${aspect_ratio}, Scale factor: ${scale_factor}`);
+      console.error(`[DEBUG] Final output path: ${output_path}`);
+    }
+
+    try {
+      // Step 1: Generate the original image
+      const tempImagePath = `temp_generated_${Date.now()}.png`;
+      
+      const generateArgs: GenerateImageArgs = {
+        prompt,
+        output_path: tempImagePath,
+        aspect_ratio,
+        safety_level,
+        person_generation
+      };
+
+      const generateResult = await this.generateImage(generateArgs);
+      
+      if (process.env.DEBUG) {
+        console.error(`[DEBUG] Step 1 completed: Image generated at ${tempImagePath}`);
+      }
+
+      // Step 2: Upscale the generated image
+      const upscaleArgs: UpscaleImageArgs = {
+        input_path: tempImagePath,
+        output_path: return_base64 ? undefined : output_path,
+        scale_factor,
+        return_base64
+      };
+
+      const upscaleResult = await this.upscaleImage(upscaleArgs);
+
+      // Step 3: Clean up temporary file
+      try {
+        await fs.unlink(tempImagePath);
+        if (process.env.DEBUG) {
+          console.error(`[DEBUG] Temporary file cleaned up: ${tempImagePath}`);
+        }
+      } catch (cleanupError) {
+        // Non-critical error, just log it
+        if (process.env.DEBUG) {
+          console.error(`[DEBUG] Warning: Failed to clean up temporary file: ${tempImagePath}`);
+        }
+      }
+
+      if (process.env.DEBUG) {
+        console.error(`[DEBUG] Step 2 completed: Image upscaled and saved to final location`);
+      }
+
+      if (return_base64) {
+        // Base64モード: upscaleResultをそのまま返すが、メッセージを更新
+        const originalContent = upscaleResult.content[0];
+        const imageContent = upscaleResult.content[1];
+        
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Image generated and upscaled successfully!\n\nPrompt: ${prompt}\nAspect ratio: ${aspect_ratio}\nScale factor: ${scale_factor}x\n\nProcess completed in 2 steps:\n1. Generated original image\n2. Upscaled to ${scale_factor}x resolution\n\nFile size: ${originalContent.text?.match(/File size: (\d+) bytes/)?.[1] || 'unknown'} bytes`
+            },
+            imageContent
+          ],
+        };
+      } else {
+        // ファイル保存モード
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Image generated and upscaled successfully!\n\nPrompt: ${prompt}\nAspect ratio: ${aspect_ratio}\nScale factor: ${scale_factor}x\nFinal output: ${path.resolve(output_path)}\n\nProcess completed in 2 steps:\n1. Generated original image\n2. Upscaled to ${scale_factor}x resolution`
+            }
+          ],
+        };
+      }
+    } catch (error) {
+      // Try to clean up temporary file if it exists
+      const tempImagePath = `temp_generated_${Date.now()}.png`;
+      try {
+        await fs.unlink(tempImagePath);
+      } catch {
+        // Ignore cleanup errors
+      }
+      
       throw error;
     }
   }
