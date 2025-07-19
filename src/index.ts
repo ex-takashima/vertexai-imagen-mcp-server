@@ -20,16 +20,21 @@ const GOOGLE_IMAGEN_MODEL = process.env.GOOGLE_IMAGEN_MODEL || 'imagen-3.0-gener
 const GOOGLE_IMAGEN_API_URL = `https://${GOOGLE_REGION}-aiplatform.googleapis.com/v1/projects/${GOOGLE_PROJECT_ID}/locations/${GOOGLE_REGION}/publishers/google/models/${GOOGLE_IMAGEN_MODEL}:predict`;
 
 interface GoogleImagenRequest {
-  prompt: string;
-  safetySettings?: Array<{
-    category: string;
-    threshold: string;
+  instances: Array<{
+    prompt: string;
   }>;
-  personGeneration?: string;
+  parameters?: {
+    sampleCount?: number;
+    safetySettings?: Array<{
+      category: string;
+      threshold: string;
+    }>;
+    personGeneration?: string;
+  };
 }
 
 interface GoogleImagenResponse {
-  generatedImages: Array<{
+  predictions: Array<{
     bytesBase64Encoded: string;
     mimeType: string;
   }>;
@@ -213,26 +218,33 @@ It should be run by an MCP client like Claude Desktop.
     }
 
     const requestBody: GoogleImagenRequest = {
-      prompt: prompt,
-      safetySettings: [
+      instances: [
         {
-          category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-          threshold: safety_level
-        },
-        {
-          category: "HARM_CATEGORY_HATE_SPEECH", 
-          threshold: safety_level
-        },
-        {
-          category: "HARM_CATEGORY_HARASSMENT",
-          threshold: safety_level
-        },
-        {
-          category: "HARM_CATEGORY_DANGEROUS_CONTENT",
-          threshold: safety_level
+          prompt: prompt
         }
       ],
-      personGeneration: person_generation
+      parameters: {
+        sampleCount: 1,
+        safetySettings: [
+          {
+            category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+            threshold: safety_level
+          },
+          {
+            category: "HARM_CATEGORY_HATE_SPEECH", 
+            threshold: safety_level
+          },
+          {
+            category: "HARM_CATEGORY_HARASSMENT",
+            threshold: safety_level
+          },
+          {
+            category: "HARM_CATEGORY_DANGEROUS_CONTENT",
+            threshold: safety_level
+          }
+        ],
+        personGeneration: person_generation
+      }
     };
 
     try {
@@ -256,11 +268,11 @@ It should be run by an MCP client like Claude Desktop.
         }
       );
 
-      if (!response.data.generatedImages || response.data.generatedImages.length === 0) {
+      if (!response.data.predictions || response.data.predictions.length === 0) {
         throw new Error('No images were generated');
       }
 
-      const generatedImage = response.data.generatedImages[0];
+      const generatedImage = response.data.predictions[0];
       const imageBuffer = Buffer.from(generatedImage.bytesBase64Encoded, 'base64');
       
       // ファイルに保存
