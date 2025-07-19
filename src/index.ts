@@ -11,10 +11,10 @@ import axios from 'axios';
 import fs from 'fs/promises';
 import path from 'path';
 
-// Google Imagine API の設定
-const GOOGLE_IMAGINE_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:generateImage';
+// Google imagen API の設定
+const GOOGLE_IMAGEN_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:generateImage';
 
-interface GoogleImagineRequest {
+interface GoogleImagenRequest {
   prompt: string;
   safetySettings?: Array<{
     category: string;
@@ -23,21 +23,21 @@ interface GoogleImagineRequest {
   personGeneration?: string;
 }
 
-interface GoogleImagineResponse {
+interface GoogleImagenResponse {
   generatedImages: Array<{
     bytesBase64Encoded: string;
     mimeType: string;
   }>;
 }
 
-class GoogleImagineMCPServer {
+class GoogleImagenMCPServer {
   private server: Server;
   private apiKey: string;
 
   constructor() {
     this.server = new Server(
       {
-        name: "google-imagine-server",
+        name: "google-imagen-server",
         version: "0.1.0",
       },
       {
@@ -67,9 +67,9 @@ class GoogleImagineMCPServer {
     // --help フラグの処理
     if (process.argv.includes('--help') || process.argv.includes('-h')) {
       console.log(`
-Google Imagine MCP Server v0.1.0
+Google Imagen MCP Server v0.1.0
 
-Usage: google-imagine-mcp-server [options]
+Usage: google-imagen-mcp-server [options]
 
 Options:
   -v, --version    Show version number
@@ -79,7 +79,7 @@ Environment Variables:
   GOOGLE_API_KEY   Google Cloud API key (required)
   DEBUG           Enable debug logging
 
-This is an MCP (Model Context Protocol) server for Google Imagine image generation.
+This is an MCP (Model Context Protocol) server for Google Imagen image generation.
 It should be run by an MCP client like Claude Desktop.
       `);
       process.exit(0);
@@ -92,7 +92,7 @@ It should be run by an MCP client like Claude Desktop.
         tools: [
           {
             name: "generate_image",
-            description: "Generate an image using Google Imagine API",
+            description: "Generate an image using Google Imagen API",
             inputSchema: {
               type: "object",
               properties: {
@@ -181,7 +181,7 @@ It should be run by an MCP client like Claude Desktop.
       console.error(`[DEBUG] Safety level: ${safety_level}`);
     }
 
-    const requestBody: GoogleImagineRequest = {
+    const requestBody: GoogleImagenRequest = {
       prompt: prompt,
       safetySettings: [
         {
@@ -205,8 +205,8 @@ It should be run by an MCP client like Claude Desktop.
     };
 
     try {
-      const response = await axios.post<GoogleImagineResponse>(
-        GOOGLE_IMAGINE_API_URL,
+      const response = await axios.post<GoogleImagenResponse>(
+        GOOGLE_IMAGEN_API_URL,
         requestBody,
         {
           headers: {
@@ -246,7 +246,7 @@ It should be run by an MCP client like Claude Desktop.
         if (process.env.DEBUG) {
           console.error(`[DEBUG] API Error: ${errorMessage}`);
         }
-        throw new Error(`Google Imagine API error: ${errorMessage}`);
+        throw new Error(`Google Imagen API error: ${errorMessage}`);
       }
       throw error;
     }
@@ -309,12 +309,12 @@ It should be run by an MCP client like Claude Desktop.
     await this.server.connect(transport);
     
     if (process.env.DEBUG) {
-      console.error("Google Imagine MCP server running on stdio (DEBUG mode)");
+      console.error("Google Imagen MCP server running on stdio (DEBUG mode)");
     } else {
-      console.error("Google Imagine MCP server running on stdio");
+      console.error("Google Imagen MCP server running on stdio");
     }
   }
 }
 
-const server = new GoogleImagineMCPServer();
+const server = new GoogleImagenMCPServer();
 server.run().catch(console.error);

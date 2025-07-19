@@ -1,6 +1,6 @@
-# Google Imagine MCP Server
+# Google Imagen MCP Server
 
-Google ImagineのAPIを使用して画像を生成するMCP（Model Context Protocol）サーバーです。Claude DesktopなどのMCPクライアントで使用することで、チャット内から直接AI画像生成が可能になります。
+Google ImagenのAPIを使用して画像を生成するMCP（Model Context Protocol）サーバーです。Claude DesktopなどのMCPクライアントで使用することで、チャット内から直接AI画像生成が可能になります。
 
 ## 🌟 機能
 
@@ -22,16 +22,18 @@ Google ImagineのAPIを使用して画像を生成するMCP（Model Context Prot
 
 1. [Google Cloud Console](https://console.cloud.google.com/) にアクセス
 2. プロジェクトを作成または選択
-3. 「APIとサービス」→「ライブラリ」から「**Imagen API**」を検索して有効化
+3. 「APIとサービス」→「ライブラリ」から「**Vertex AI API**」を検索して有効化
 4. 「認証情報」→「認証情報を作成」→「**APIキー**」
 5. 生成されたAPIキーをコピー（後で使用）
+
+**重要**: Imagen は Vertex AI の一部として提供されています。「Imagen API」という独立したAPIは存在しないため、「**Vertex AI API**」を有効化してください。
 
 ### 2. プロジェクトのセットアップ
 
 ```bash
 # プロジェクトをクローンまたはダウンロード
 git clone https://github.com/ex-takashima/google-imagen-mcp-server.git
-cd google-imagine-mcp-server
+cd google-imagen-mcp-server
 
 # 依存関係をインストール
 npm install
@@ -51,7 +53,7 @@ npm run build
 npm link
 
 # 確認
-google-imagine-mcp-server --version
+google-imagen-mcp-server --version
 ```
 
 #### 📦 方法B: ローカルパッケージ（推奨）
@@ -61,10 +63,10 @@ google-imagine-mcp-server --version
 npm pack
 
 # グローバルインストール（Windows: PowerShellを管理者として実行）
-npm install -g ./google-imagine-mcp-server-0.1.0.tgz
+npm install -g ./google-imagen-mcp-server-0.1.0.tgz
 
 # 確認
-google-imagine-mcp-server --version
+google-imagen-mcp-server --version
 ```
 
 #### 🌐 方法C: 直接パス指定（バックアップ案）
@@ -74,9 +76,9 @@ google-imagine-mcp-server --version
 ```json
 {
   "mcpServers": {
-    "google-imagine": {
+    "google-imagen": {
       "command": "node",
-      "args": ["C:\\projects\\google-imagine-mcp-server\\build\\index.js"],
+      "args": ["C:\\projects\\google-imagen-mcp-server\\build\\index.js"],
       "env": {
         "GOOGLE_API_KEY": "your-api-key-here"
       }
@@ -99,8 +101,8 @@ Claude Desktop の設定ファイルを編集します：
 ```json
 {
   "mcpServers": {
-    "google-imagine": {
-      "command": "google-imagine-mcp-server",
+    "google-Imagen": {
+      "command": "google-imagen-mcp-server",
       "env": {
         "GOOGLE_API_KEY": "AIzaSyBxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
       }
@@ -300,8 +302,8 @@ npm pack
 ```json
 {
   "mcpServers": {
-    "google-imagine": {
-      "command": "google-imagine-mcp-server",
+    "google-imagen": {
+      "command": "google-imagen-mcp-server",
       "env": {
         "GOOGLE_API_KEY": "your-api-key",
         "DEBUG": "1"
@@ -322,8 +324,8 @@ npm pack
 **解決策**:
 ```bash
 # コマンドの存在確認
-which google-imagine-mcp-server  # macOS/Linux
-where google-imagine-mcp-server  # Windows
+which google-imagen-mcp-server  # macOS/Linux
+where google-imagen-mcp-server  # Windows
 
 # 権限で問題がある場合（Windows）
 # PowerShellを管理者として実行してインストール
@@ -335,8 +337,9 @@ where google-imagine-mcp-server  # Windows
 
 **解決策**:
 1. Google Cloud Console でAPIキーが有効か確認
-2. Imagen API が有効化されているか確認
+2. **Vertex AI API** が有効化されているか確認（Imagen APIという独立したAPIは存在しません）
 3. 設定ファイルでAPIキーが正しく設定されているか確認
+4. プロジェクトIDがAPIキーと一致しているか確認
 
 #### 💰 課金設定エラー
 
@@ -344,7 +347,7 @@ where google-imagine-mcp-server  # Windows
 
 **解決策**:
 1. Google Cloud で請求先アカウントが設定されているか確認
-2. Imagen API の利用料金について確認
+
 
 #### 🖼️ 画像生成エラー
 
@@ -354,6 +357,7 @@ where google-imagine-mcp-server  # Windows
 1. プロンプトの内容を調整
 2. `safety_level` を `BLOCK_ONLY_HIGH` に緩和
 3. 具体的で建設的な表現に変更
+
 
 #### 📝 ログの確認
 
@@ -365,7 +369,7 @@ where google-imagine-mcp-server  # Windows
 
 ```bash
 # MCPサーバーのバージョン
-google-imagine-mcp-server --version
+google-imagen-mcp-server --version
 
 # Node.js バージョン（v18以上必要）
 node --version
@@ -380,10 +384,10 @@ npm --version
 
 ```bash
 # ヘルプ表示
-google-imagine-mcp-server --help
+google-imagen-mcp-server --help
 
 # バージョン表示
-google-imagine-mcp-server --version
+google-imagen-mcp-server --version
 ```
 
 ### 環境変数
@@ -402,7 +406,18 @@ google-imagine-mcp-server --version
 
 ## 💰 費用について
 
-Google Imagine API は従量課金制です。詳細な料金については [Google Cloud Pricing](https://cloud.google.com/vertex-ai/pricing) をご確認ください。
+Google Imagen は Vertex AI の一部として従量課金制です。詳細な料金については [Vertex AI Pricing](https://cloud.google.com/vertex-ai/pricing) をご確認ください。
+
+**価格例**（2025年7月時点）:
+- Imagen 3: 約 $0.04 per image
+- Imagen 4: 約 $0.04 per image
+- Imagen 4 Ultra: 約 $0.06 per image
+
+**無料枠について**:
+- **Google Cloud 無料トライアル**: 新規ユーザーは90日間で$300のクレジットを利用可能
+- Vertex AI自体には月間の無料枠はありませんが、Google Cloud Consoleの無料枠プログラムが適用される場合があります
+- 既にBigQueryやCloud StorageなどのGoogle Cloudサービスを利用している場合は、無料枠を活用してVertex AIをお試しできます
+- これは変更になる場合がありますので、Googleサイトで確認してください
 
 ## 🤝 コントリビューション
 
@@ -421,8 +436,9 @@ MIT License - 詳細は [LICENSE](LICENSE) ファイルをご覧ください。
 ## 🙏 謝辞
 
 - [Model Context Protocol](https://modelcontextprotocol.io/) by Anthropic
-- [Google Cloud Imagen API](https://cloud.google.com/vertex-ai/docs/generative-ai/image/overview)
+- [Google Cloud Vertex AI Imagen](https://cloud.google.com/vertex-ai/generative-ai/docs/image/overview)
 
 ---
 
 **💡 ヒント**: 画像生成がうまくいかない場合は、プロンプトをより具体的で詳細な内容に変更してみてください。英語のプロンプトの方が高品質な結果が得られる場合があります。
+
