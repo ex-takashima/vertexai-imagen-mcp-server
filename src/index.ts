@@ -10,6 +10,7 @@ import {
 import axios from 'axios';
 import fs from 'fs/promises';
 import path from 'path';
+import { GoogleAuth } from 'google-auth-library';
 
 // Google Imagen API の設定
 const GOOGLE_PROJECT_ID = process.env.GOOGLE_PROJECT_ID;
@@ -51,7 +52,7 @@ const TOOL_LIST_GENERATED_IMAGES = "list_generated_images";
 
 class GoogleImagenMCPServer {
   private server: Server;
-  private apiKey: string;
+  private auth: GoogleAuth;
 
   constructor() {
     this.server = new Server(
@@ -66,9 +67,17 @@ class GoogleImagenMCPServer {
       }
     );
 
-    this.apiKey = process.env.GOOGLE_API_KEY || '';
-    if (!this.apiKey) {
-      console.error('GOOGLE_API_KEY environment variable is required');
+    // Google Cloud認証の設定
+    this.auth = new GoogleAuth({
+      scopes: ['https://www.googleapis.com/auth/cloud-platform'],
+      credentials: process.env.GOOGLE_SERVICE_ACCOUNT_KEY ? 
+        JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY) : undefined,
+      projectId: GOOGLE_PROJECT_ID,
+    });
+
+    // 必要な環境変数のチェック
+    if (!GOOGLE_PROJECT_ID) {
+      console.error('GOOGLE_PROJECT_ID environment variable is required');
       process.exit(1);
     }
 
@@ -95,8 +104,11 @@ Options:
   -h, --help       Show help
   
 Environment Variables:
-  GOOGLE_API_KEY   Google Cloud API key (required)
-  DEBUG           Enable debug logging
+  GOOGLE_PROJECT_ID               Google Cloud Project ID (required)
+  GOOGLE_SERVICE_ACCOUNT_KEY      Service account JSON key (required)
+  GOOGLE_REGION                   Region (optional, default: us-central1)
+  GOOGLE_IMAGEN_MODEL            Model name (optional, default: imagen-3.0-generate-001)
+  DEBUG                          Enable debug logging
 
 This is an MCP (Model Context Protocol) server for Google Imagen image generation.
 It should be run by an MCP client like Claude Desktop.
@@ -224,13 +236,21 @@ It should be run by an MCP client like Claude Desktop.
     };
 
     try {
+      // OAuth2アクセストークンを取得
+      const authClient = await this.auth.getClient();
+      const accessToken = await authClient.getAccessToken();
+
+      if (!accessToken.token) {
+        throw new Error('Failed to obtain access token');
+      }
+
       const response = await axios.post<GoogleImagenResponse>(
         GOOGLE_IMAGEN_API_URL,
         requestBody,
         {
           headers: {
             'Content-Type': 'application/json',
-            'x-goog-api-key': this.apiKey,
+            'Authorization': `Bearer ${accessToken.token}`,
           },
           timeout: 30000, // 30秒のタイムアウト
         }
