@@ -11,8 +11,12 @@ import axios from 'axios';
 import fs from 'fs/promises';
 import path from 'path';
 
-// Google imagen API の設定
-const GOOGLE_IMAGEN_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${process.env.GOOGLE_IMAGEN_MODEL || 'imagen-3.0-generate-001'}:generateImage`;
+// Google Imagen API の設定
+const GOOGLE_PROJECT_ID = process.env.GOOGLE_PROJECT_ID;
+const GOOGLE_REGION = process.env.GOOGLE_REGION || 'us-central1';
+const GOOGLE_IMAGEN_MODEL = process.env.GOOGLE_IMAGEN_MODEL || 'imagen-3.0-generate-001';
+
+const GOOGLE_IMAGEN_API_URL = `https://${GOOGLE_REGION}-aiplatform.googleapis.com/v1/projects/${GOOGLE_PROJECT_ID}/locations/${GOOGLE_REGION}/publishers/google/models/${GOOGLE_IMAGEN_MODEL}:predict`;
 
 interface GoogleImagenRequest {
   prompt: string;
