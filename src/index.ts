@@ -16,8 +16,10 @@ import { GoogleAuth } from 'google-auth-library';
 const GOOGLE_PROJECT_ID = process.env.GOOGLE_PROJECT_ID;
 const GOOGLE_REGION = process.env.GOOGLE_REGION || 'us-central1';
 const GOOGLE_IMAGEN_MODEL = process.env.GOOGLE_IMAGEN_MODEL || 'imagen-3.0-generate-002';
+const GOOGLE_IMAGEN_UPSCALE_MODEL = process.env.GOOGLE_IMAGEN_UPSCALE_MODEL || 'imagegeneration@002';
 
 const GOOGLE_IMAGEN_API_URL = `https://${GOOGLE_REGION}-aiplatform.googleapis.com/v1/projects/${GOOGLE_PROJECT_ID}/locations/${GOOGLE_REGION}/publishers/google/models/${GOOGLE_IMAGEN_MODEL}:predict`;
+const GOOGLE_IMAGEN_UPSCALE_API_URL = `https://${GOOGLE_REGION}-aiplatform.googleapis.com/v1/projects/${GOOGLE_PROJECT_ID}/locations/${GOOGLE_REGION}/publishers/google/models/${GOOGLE_IMAGEN_UPSCALE_MODEL}:predict`;
 
 interface GoogleImagenRequest {
   instances: Array<{
@@ -36,6 +38,7 @@ interface GoogleImagenRequest {
 
 interface GoogleUpscaleRequest {
   instances: Array<{
+    prompt?: string;
     image?: {
       bytesBase64Encoded: string;
     };
@@ -45,6 +48,7 @@ interface GoogleUpscaleRequest {
     upscaleConfig: {
       upscaleFactor: string;
     };
+    sampleCount?: number;
   };
 }
 
@@ -509,6 +513,7 @@ It should be run by an MCP client like Claude Desktop.
       const requestBody: GoogleUpscaleRequest = {
         instances: [
           {
+            prompt: "",
             image: {
               bytesBase64Encoded: inputImageBase64
             }
@@ -517,8 +522,9 @@ It should be run by an MCP client like Claude Desktop.
         parameters: {
           mode: "upscale",
           upscaleConfig: {
-            upscaleFactor: scale_factor
-          }
+            upscaleFactor: `x${scale_factor}`
+          },
+          sampleCount: 1
         }
       };
 
@@ -531,7 +537,7 @@ It should be run by an MCP client like Claude Desktop.
       }
 
       const response = await axios.post<GoogleImagenResponse>(
-        GOOGLE_IMAGEN_API_URL,
+        GOOGLE_IMAGEN_UPSCALE_API_URL,
         requestBody,
         {
           headers: {
@@ -559,7 +565,10 @@ It should be run by an MCP client like Claude Desktop.
           imageBuffer, 
           upscaledImage.mimeType,
           undefined,
-          `Image upscaled successfully!\n\nInput: ${input_path}\nScale factor: ${scale_factor}x`
+          `Image upscaled successfully!
+
+Input: ${input_path}
+Scale factor: ${scale_factor}`
         );
       } else {
         // ファイル保存モード
@@ -574,7 +583,7 @@ It should be run by an MCP client like Claude Desktop.
           content: [
             {
               type: "text",
-              text: `Image upscaled successfully!\n\nInput: ${input_path}\nScale factor: ${scale_factor}x\nSaved to: ${fullPath}\nFile size: ${imageBuffer.length} bytes\nMIME type: ${upscaledImage.mimeType}`
+              text: `Image upscaled successfully!\n\nInput: ${input_path}\nScale factor: ${scale_factor}\nSaved to: ${fullPath}\nFile size: ${imageBuffer.length} bytes\nMIME type: ${upscaledImage.mimeType}`
             }
           ],
         };
@@ -684,7 +693,7 @@ It should be run by an MCP client like Claude Desktop.
           content: [
             {
               type: "text",
-              text: `Image generated and upscaled successfully!\n\nPrompt: ${prompt}\nAspect ratio: ${aspect_ratio}\nScale factor: ${scale_factor}x\n\nProcess completed in 2 steps:\n1. Generated original image\n2. Upscaled to ${scale_factor}x resolution\n\nFile size: ${originalContent.text?.match(/File size: (\d+) bytes/)?.[1] || 'unknown'} bytes`
+              text: `Image generated and upscaled successfully!\n\nPrompt: ${prompt}\nAspect ratio: ${aspect_ratio}\nScale factor: ${scale_factor}\n\nProcess completed in 2 steps:\n1. Generated original image\n2. Upscaled to ${scale_factor}x resolution\n\nFile size: ${originalContent.text?.match(/File size: (\d+) bytes/)?.[1] || 'unknown'} bytes`
             },
             imageContent
           ],
@@ -695,7 +704,7 @@ It should be run by an MCP client like Claude Desktop.
           content: [
             {
               type: "text",
-              text: `Image generated and upscaled successfully!\n\nPrompt: ${prompt}\nAspect ratio: ${aspect_ratio}\nScale factor: ${scale_factor}x\nFinal output: ${path.resolve(output_path)}\n\nProcess completed in 2 steps:\n1. Generated original image\n2. Upscaled to ${scale_factor}x resolution`
+              text: `Image generated and upscaled successfully!\n\nPrompt: ${prompt}\nAspect ratio: ${aspect_ratio}\nScale factor: ${scale_factor}\nFinal output: ${path.resolve(output_path)}\n\nProcess completed in 2 steps:\n1. Generated original image\n2. Upscaled to ${scale_factor}x resolution`
             }
           ],
         };
