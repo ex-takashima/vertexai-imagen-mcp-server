@@ -14,7 +14,7 @@ import { GoogleAuth } from 'google-auth-library';
 
 // Google Imagen API の設定
 const GOOGLE_PROJECT_ID = process.env.GOOGLE_PROJECT_ID;
-const GOOGLE_REGION = process.env.GOOGLE_REGION || 'us-central1';
+const GOOGLE_REGION = process.env.GOOGLE_REGION || 'asia-northeast1';
 const GOOGLE_IMAGEN_MODEL = process.env.GOOGLE_IMAGEN_MODEL || 'imagen-3.0-generate-002';
 const GOOGLE_IMAGEN_UPSCALE_MODEL = process.env.GOOGLE_IMAGEN_UPSCALE_MODEL || 'imagegeneration@002';
 
@@ -565,10 +565,7 @@ It should be run by an MCP client like Claude Desktop.
           imageBuffer, 
           upscaledImage.mimeType,
           undefined,
-          `Image upscaled successfully!
-
-Input: ${input_path}
-Scale factor: ${scale_factor}`
+          `Image upscaled successfully!\n\nInput: ${input_path}\nScale factor: ${scale_factor}`
         );
       } else {
         // ファイル保存モード
@@ -773,6 +770,7 @@ Scale factor: ${scale_factor}`
       throw new Error(`Failed to list images: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
+
 
   async run() {
     const transport = new StdioServerTransport();
