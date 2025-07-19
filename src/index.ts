@@ -156,9 +156,9 @@ It should be run by an MCP client like Claude Desktop.
       try {
         switch (name) {
           case TOOL_GENERATE_IMAGE:
-            return await this.generateImage(args as GenerateImageArgs);
+            return await this.generateImage(args as unknown as GenerateImageArgs);
           case TOOL_LIST_GENERATED_IMAGES:
-            return await this.listGeneratedImages(args as ListGeneratedImagesArgs);
+            return await this.listGeneratedImages(args as unknown as ListGeneratedImagesArgs);
           default:
             throw new McpError(
               ErrorCode.MethodNotFound,
@@ -266,13 +266,13 @@ It should be run by an MCP client like Claude Desktop.
         }
 
         if (errorCode === 401 || errorCode === 403) {
-          throw new McpError(ErrorCode.Unauthenticated, `Google Imagen API authentication error: ${errorMessage}`);
+          throw new McpError(ErrorCode.InvalidRequest, `Google Imagen API authentication error: ${errorMessage}`);
         }
         if (errorCode === 400) {
           throw new McpError(ErrorCode.InvalidParams, `Google Imagen API invalid parameter error: ${errorMessage}`);
         }
         if (errorCode && errorCode >= 500) {
-          throw new McpError(ErrorCode.UpstreamError, `Google Imagen API server error: ${errorMessage}`);
+          throw new McpError(ErrorCode.InternalError, `Google Imagen API server error: ${errorMessage}`);
         }
         
         throw new McpError(ErrorCode.InternalError, `Google Imagen API error: ${errorMessage}`);
