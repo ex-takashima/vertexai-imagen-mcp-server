@@ -22,15 +22,30 @@ Google ImagenのAPIを使用して画像を生成するMCP（Model Context Proto
 
 ## 🚀 クイックスタート
 
-### 1. Google Cloud APIキーの取得
+### 1. Google Cloud サービスアカウントの作成
+
+#### サービスアカウントの作成手順
 
 1. [Google Cloud Console](https://console.cloud.google.com/) にアクセス
 2. プロジェクトを作成または選択
 3. 「APIとサービス」→「ライブラリ」から「**Vertex AI API**」を検索して有効化
-4. 「認証情報」→「認証情報を作成」→「**APIキー**」
-5. 生成されたAPIキーをコピー（後で使用）
+4. 「IAMと管理」→「サービスアカウント」に移動
+5. 「サービスアカウントを作成」をクリック
+6. サービスアカウント名（例: `imagen-mcp-server`）を入力して「作成」
+7. ロールの選択で「**Vertex AI ユーザー**」を追加
+8. 「完了」をクリック
 
-**重要**: Imagen は Vertex AI の一部として提供されています。「Imagen API」という独立したAPIは存在しないため、「**Vertex AI API**」を有効化してください。
+#### サービスアカウントキーの生成
+
+1. 作成したサービスアカウントをクリック
+2. 「キー」タブに移動
+3. 「キーを追加」→「新しいキーを作成」
+4. 「JSON」を選択して「作成」
+5. ダウンロードされたJSONファイルを安全な場所に保存
+
+**重要**: 
+- Imagen は Vertex AI の一部として提供されています。「Imagen API」という独立したAPIは存在しないため、「**Vertex AI API**」を有効化してください。
+- サービスアカウントキーファイルは機密情報です。安全に管理してください。
 
 ### 2. プロジェクトのセットアップ
 
@@ -46,7 +61,26 @@ npm install
 npm run build
 ```
 
-### 3. インストール方法の選択
+### 3. サービスアカウントキーファイルの配置
+
+ダウンロードしたJSONファイルを適切な場所に配置します：
+
+```bash
+# 例: プロジェクトディレクトリに配置
+cp /path/to/downloaded/service-account-key.json ./google-service-account.json
+
+# または、専用ディレクトリに配置
+mkdir -p ~/.config/google-cloud/
+cp /path/to/downloaded/service-account-key.json ~/.config/google-cloud/imagen-service-account.json
+```
+
+**セキュリティ注意**: ファイルのアクセス権限を制限することを推奨します：
+
+```bash
+chmod 600 ./google-service-account.json
+```
+
+### 4. インストール方法の選択
 
 以下のいずれかの方法でインストールできます：
 
@@ -93,7 +127,7 @@ google-imagen-mcp-server --version
 
 **💡 推奨**: 方法Bを試して、問題があれば方法Cを使用してください。
 
-### 4. Claude Desktop での設定
+### 5. Claude Desktop での設定
 
 Claude Desktop の設定ファイルを編集します：
 
@@ -101,22 +135,59 @@ Claude Desktop の設定ファイルを編集します：
 - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
 
-**設定内容:**
+#### 設定方法1: 環境変数でサービスアカウントキーを指定
+
 ```json
 {
   "mcpServers": {
-    "google-Imagen": {
+    "google-imagen": {
       "command": "google-imagen-mcp-server",
       "env": {
-        "GOOGLE_API_KEY": "AIzaSyBxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-        // "GOOGLE_IMAGEN_MODEL": "imagen-3.0-latest" // 必要に応じてモデルを変更
+        "GOOGLE_SERVICE_ACCOUNT_KEY": "{\"type\":\"service_account\",\"project_id\":\"your-project-id\",...}",
+        "GOOGLE_PROJECT_ID": "your-project-id"
       }
     }
   }
 }
 ```
 
-### 5. Claude Desktop を再起動
+#### 設定方法2: サービスアカウントキーファイルのパスを指定（推奨）
+
+```json
+{
+  "mcpServers": {
+    "google-imagen": {
+      "command": "google-imagen-mcp-server",
+      "env": {
+        "GOOGLE_APPLICATION_CREDENTIALS": "/path/to/your/google-service-account.json",
+        "GOOGLE_PROJECT_ID": "your-project-id"
+      }
+    }
+  }
+}
+```
+
+**Windows の場合:**
+```json
+{
+  "mcpServers": {
+    "google-imagen": {
+      "command": "google-imagen-mcp-server",
+      "env": {
+        "GOOGLE_APPLICATION_CREDENTIALS": "C:\\path\\to\\your\\google-service-account.json",
+        "GOOGLE_PROJECT_ID": "your-project-id"
+      }
+    }
+  }
+}
+```
+
+**重要**: 
+- `your-project-id` を実際のGoogle CloudプロジェクトIDに置き換えてください
+- ファイルパスは絶対パスで指定してください
+- 設定方法2（ファイルパス指定）を推奨します
+
+### 6. Claude Desktop を再起動
 
 設定ファイルを保存後、Claude Desktop を完全に終了して再起動してください。
 
@@ -459,8 +530,8 @@ npm pack
     "google-imagen": {
       "command": "google-imagen-mcp-server",
       "env": {
-        "GOOGLE_API_KEY": "your-api-key",
-        "GOOGLE_IMAGEN_MODEL": "imagen-3.0-latest", // 任意でモデルを指定
+        "GOOGLE_APPLICATION_CREDENTIALS": "/path/to/your/service-account.json",
+        "GOOGLE_PROJECT_ID": "your-project-id",
         "DEBUG": "1"
       }
     }
@@ -486,15 +557,16 @@ where google-imagen-mcp-server  # Windows
 # PowerShellを管理者として実行してインストール
 ```
 
-#### 🔑 API キーエラー
+#### 🔑 認証エラー
 
-**エラーメッセージ**: `GOOGLE_API_KEY environment variable is required`
+**エラーメッセージ**: `Failed to obtain access token` または認証関連エラー
 
 **解決策**:
-1. Google Cloud Console でAPIキーが有効か確認
+1. サービスアカウントキーファイルのパスが正しいか確認
 2. **Vertex AI API** が有効化されているか確認（Imagen APIという独立したAPIは存在しません）
-3. 設定ファイルでAPIキーが正しく設定されているか確認
-4. プロジェクトIDがAPIキーと一致しているか確認
+3. サービスアカウントに「Vertex AI ユーザー」ロールが付与されているか確認
+4. `GOOGLE_PROJECT_ID` が正しく設定されているか確認
+5. サービスアカウントキーファイルの形式が正しいJSON形式か確認
 
 #### 💰 課金設定エラー
 
@@ -576,18 +648,24 @@ google-imagen-mcp-server --version
 
 | 変数名 | 必須 | 説明 |
 |--------|-----|------|
-| `GOOGLE_API_KEY` | ✅ | Google Cloud APIキー |
-| `GOOGLE_PROJECT_ID` | ❌ | Google CloudプロジェクトID |
+| `GOOGLE_APPLICATION_CREDENTIALS` | ✅* | サービスアカウントキーファイルのパス |
+| `GOOGLE_SERVICE_ACCOUNT_KEY` | ✅* | サービスアカウントキーのJSON文字列 |
+| `GOOGLE_PROJECT_ID` | ✅ | Google CloudプロジェクトID |
 | `GOOGLE_REGION` | ❌ | リージョン (デフォルト: us-central1) |
-| `GOOGLE_IMAGEN_MODEL` | ❌ | 使用するImagenモデル名 (デフォルト: `imagen-3.0-generate-002`) |
+| `GOOGLE_IMAGEN_MODEL` | ❌ | 使用する画像生成モデル名 (デフォルト: `imagen-3.0-generate-002`) |
+| `GOOGLE_IMAGEN_UPSCALE_MODEL` | ❌ | 使用するアップスケーリングモデル名 (デフォルト: `imagegeneration@002`) |
 | `DEBUG` | ❌ | デバッグログの有効化（"1"で有効） |
+
+***認証について**: `GOOGLE_APPLICATION_CREDENTIALS` または `GOOGLE_SERVICE_ACCOUNT_KEY` のいずれか一つが必須です。ファイルパス指定（`GOOGLE_APPLICATION_CREDENTIALS`）を推奨します。
 
 ## 🔒 セキュリティ注意事項
 
-- **APIキーの管理**: APIキーは機密情報です。設定ファイルを他人と共有しないでください
-- **定期的なローテーション**: セキュリティのため、APIキーを定期的に更新することを推奨
-- **アクセス制限**: Google Cloud Console でAPIキーの使用制限を設定することを推奨
-- **不要なキーの削除**: 使用しなくなったAPIキーは速やかに削除してください
+- **サービスアカウントキーの管理**: サービスアカウントキーファイルは機密情報です。設定ファイルやキーファイルを他人と共有しないでください
+- **ファイルアクセス権限**: サービスアカウントキーファイルのアクセス権限を制限してください（例: `chmod 600`）
+- **定期的なローテーション**: セキュリティのため、サービスアカウントキーを定期的に更新することを推奨
+- **最小権限の原則**: サービスアカウントには必要最小限の権限（Vertex AI ユーザー）のみを付与
+- **不要なキーの削除**: 使用しなくなったサービスアカウントキーは速やかに削除してください
+- **バージョン管理システムへの注意**: `.gitignore`でサービスアカウントキーファイルを除外してください
 
 ## 💰 費用について
 
