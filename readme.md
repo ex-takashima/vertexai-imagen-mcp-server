@@ -17,7 +17,6 @@ Google ImagenのAPIを使用して画像を生成するMCP（Model Context Proto
 ## 📋 必要条件
 
 - **Node.js**: v18以上
-- **Google Cloud API**: Imagen APIが有効なプロジェクトとAPIキー
 - **MCP対応クライアント**: Claude Desktop等
 
 ## 🚀 クイックスタート
