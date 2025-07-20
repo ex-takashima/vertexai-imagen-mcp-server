@@ -117,7 +117,7 @@ google-imagen-mcp-server --version
       "command": "node",
       "args": ["C:\\projects\\google-imagen-mcp-server\\build\\index.js"],
       "env": {
-        "GOOGLE_API_KEY": "your-api-key-here"
+        "GOOGLE_APPLICATION_CREDENTIALS": "C:\\path\\to\\your\\google-service-account.json"
       }
     }
   }
