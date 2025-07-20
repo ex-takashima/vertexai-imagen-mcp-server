@@ -188,6 +188,61 @@ Claude Desktop の設定ファイルを編集します：
 
 設定ファイルを保存後、Claude Desktop を完全に終了して再起動してください。
 
+### 7. Claude Code での使用方法
+
+[Claude Code](https://claude.ai/code) でも同様にMCPサーバーとして使用できます。
+
+#### 設定方法
+
+Claude Code の設定ファイルに以下を追加してください：
+
+```json
+{
+  "mcpServers": {
+    "google-imagen": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "google-imagen-mcp-server"],
+      "env": {
+        "GOOGLE_APPLICATION_CREDENTIALS": "C:\\path\\to\\your\\google-service-account.json"
+      }
+    }
+  }
+}
+```
+
+**macOS/Linux の場合:**
+```json
+{
+  "mcpServers": {
+    "google-imagen": {
+      "command": "npx",
+      "args": ["-y", "google-imagen-mcp-server"],
+      "env": {
+        "GOOGLE_APPLICATION_CREDENTIALS": "/path/to/your/google-service-account.json"
+      }
+    }
+  }
+}
+```
+
+#### 使用方法
+
+Claude Code では以下のようにリクエストできます：
+
+```
+美しい夕日が映る湖の風景の画像を生成してください
+```
+
+```
+猫が宇宙服を着ている可愛いイラストを作って、ファイル名は "space_cat.png" で保存してください
+```
+
+```
+現在のディレクトリにある画像ファイルを一覧表示してください
+```
+
+Claude Code では自然言語でのリクエストが可能で、適切なツールパラメーターに自動変換されます。
+
 ## 🎯 使用方法
 
 Claude Desktop で以下のように話しかけるだけで画像生成ができます：
