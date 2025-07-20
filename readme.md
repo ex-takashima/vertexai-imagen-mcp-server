@@ -142,8 +142,7 @@ Claude Desktop の設定ファイルを編集します：
     "google-imagen": {
       "command": "google-imagen-mcp-server",
       "env": {
-        "GOOGLE_SERVICE_ACCOUNT_KEY": "{\"type\":\"service_account\",\"project_id\":\"your-project-id\",...}",
-        "GOOGLE_PROJECT_ID": "your-project-id"
+        "GOOGLE_SERVICE_ACCOUNT_KEY": "{\"type\":\"service_account\",\"project_id\":\"your-project-id\",...}"
       }
     }
   }
@@ -158,8 +157,7 @@ Claude Desktop の設定ファイルを編集します：
     "google-imagen": {
       "command": "google-imagen-mcp-server",
       "env": {
-        "GOOGLE_APPLICATION_CREDENTIALS": "/path/to/your/google-service-account.json",
-        "GOOGLE_PROJECT_ID": "your-project-id"
+        "GOOGLE_APPLICATION_CREDENTIALS": "/path/to/your/google-service-account.json"
       }
     }
   }
@@ -173,8 +171,7 @@ Claude Desktop の設定ファイルを編集します：
     "google-imagen": {
       "command": "google-imagen-mcp-server",
       "env": {
-        "GOOGLE_APPLICATION_CREDENTIALS": "C:\\path\\to\\your\\google-service-account.json",
-        "GOOGLE_PROJECT_ID": "your-project-id"
+        "GOOGLE_APPLICATION_CREDENTIALS": "C:\\path\\to\\your\\google-service-account.json"
       }
     }
   }
@@ -182,9 +179,10 @@ Claude Desktop の設定ファイルを編集します：
 ```
 
 **重要**: 
-- `your-project-id` を実際のGoogle CloudプロジェクトIDに置き換えてください
+- プロジェクトIDは自動的にサービスアカウントキーファイルから取得されます
 - ファイルパスは絶対パスで指定してください
 - 設定方法2（ファイルパス指定）を推奨します
+- GOOGLE_PROJECT_ID環境変数の指定は不要になりました（オプションとして使用可能）
 
 ### 6. Claude Desktop を再起動
 
@@ -530,7 +528,6 @@ npm pack
       "command": "google-imagen-mcp-server",
       "env": {
         "GOOGLE_APPLICATION_CREDENTIALS": "/path/to/your/service-account.json",
-        "GOOGLE_PROJECT_ID": "your-project-id",
         "DEBUG": "1"
       }
     }
@@ -564,8 +561,8 @@ where google-imagen-mcp-server  # Windows
 1. サービスアカウントキーファイルのパスが正しいか確認
 2. **Vertex AI API** が有効化されているか確認（Imagen APIという独立したAPIは存在しません）
 3. サービスアカウントに「Vertex AI ユーザー」ロールが付与されているか確認
-4. `GOOGLE_PROJECT_ID` が正しく設定されているか確認
-5. サービスアカウントキーファイルの形式が正しいJSON形式か確認
+4. サービスアカウントキーファイルの形式が正しいJSON形式か確認
+5. プロジェクトIDがサービスアカウントキーに含まれているか確認（自動取得のため）
 
 #### 💰 課金設定エラー
 
@@ -649,13 +646,13 @@ google-imagen-mcp-server --version
 |--------|-----|------|
 | `GOOGLE_APPLICATION_CREDENTIALS` | ✅* | サービスアカウントキーファイルのパス |
 | `GOOGLE_SERVICE_ACCOUNT_KEY` | ✅* | サービスアカウントキーのJSON文字列 |
-| `GOOGLE_PROJECT_ID` | ✅ | Google CloudプロジェクトID |
-| `GOOGLE_REGION` | ❌ | リージョン (デフォルト: us-central1) |
+| `GOOGLE_PROJECT_ID` | ❌ | Google CloudプロジェクトID（自動取得、手動指定も可能） |
+| `GOOGLE_REGION` | ❌ | リージョン (デフォルト: asia-northeast1) |
 | `GOOGLE_IMAGEN_MODEL` | ❌ | 使用する画像生成モデル名 (デフォルト: `imagen-3.0-generate-002`) |
 | `GOOGLE_IMAGEN_UPSCALE_MODEL` | ❌ | 使用するアップスケーリングモデル名 (デフォルト: `imagegeneration@002`) |
 | `DEBUG` | ❌ | デバッグログの有効化（"1"で有効） |
 
-***認証について**: `GOOGLE_APPLICATION_CREDENTIALS` または `GOOGLE_SERVICE_ACCOUNT_KEY` のいずれか一つが必須です。ファイルパス指定（`GOOGLE_APPLICATION_CREDENTIALS`）を推奨します。
+***認証について**: `GOOGLE_APPLICATION_CREDENTIALS` または `GOOGLE_SERVICE_ACCOUNT_KEY` のいずれか一つが必須です。ファイルパス指定（`GOOGLE_APPLICATION_CREDENTIALS`）を推奨します。プロジェクトIDはサービスアカウントキーファイルから自動的に取得されます。
 
 ## 🔒 セキュリティ注意事項
 

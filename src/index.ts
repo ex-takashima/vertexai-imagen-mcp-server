@@ -13,13 +13,48 @@ import path from 'path';
 import { GoogleAuth } from 'google-auth-library';
 
 // Google Imagen API の設定
-const GOOGLE_PROJECT_ID = process.env.GOOGLE_PROJECT_ID;
 const GOOGLE_REGION = process.env.GOOGLE_REGION || 'asia-northeast1';
 const GOOGLE_IMAGEN_MODEL = process.env.GOOGLE_IMAGEN_MODEL || 'imagen-3.0-generate-002';
 const GOOGLE_IMAGEN_UPSCALE_MODEL = process.env.GOOGLE_IMAGEN_UPSCALE_MODEL || 'imagegeneration@002';
 
-const GOOGLE_IMAGEN_API_URL = `https://${GOOGLE_REGION}-aiplatform.googleapis.com/v1/projects/${GOOGLE_PROJECT_ID}/locations/${GOOGLE_REGION}/publishers/google/models/${GOOGLE_IMAGEN_MODEL}:predict`;
-const GOOGLE_IMAGEN_UPSCALE_API_URL = `https://${GOOGLE_REGION}-aiplatform.googleapis.com/v1/projects/${GOOGLE_PROJECT_ID}/locations/${GOOGLE_REGION}/publishers/google/models/${GOOGLE_IMAGEN_UPSCALE_MODEL}:predict`;
+// プロジェクトIDを動的に取得するための関数
+let PROJECT_ID: string | null = null;
+
+async function getProjectId(auth: GoogleAuth): Promise<string> {
+  if (PROJECT_ID) {
+    return PROJECT_ID;
+  }
+  
+  // 環境変数から取得を試行
+  if (process.env.GOOGLE_PROJECT_ID) {
+    PROJECT_ID = process.env.GOOGLE_PROJECT_ID;
+    return PROJECT_ID;
+  }
+  
+  // サービスアカウントキーファイルから取得を試行
+  try {
+    const authClient = await auth.getClient();
+    PROJECT_ID = await auth.getProjectId();
+    if (PROJECT_ID) {
+      return PROJECT_ID;
+    }
+  } catch (error) {
+    if (process.env.DEBUG) {
+      console.error('[DEBUG] Failed to get project ID from service account:', error);
+    }
+  }
+  
+  throw new Error('Project ID not found. Please set GOOGLE_PROJECT_ID environment variable or ensure service account key contains project_id.');
+}
+
+// APIのURLを動的に生成する関数
+function getImagenApiUrl(projectId: string): string {
+  return `https://${GOOGLE_REGION}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${GOOGLE_REGION}/publishers/google/models/${GOOGLE_IMAGEN_MODEL}:predict`;
+}
+
+function getUpscaleApiUrl(projectId: string): string {
+  return `https://${GOOGLE_REGION}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${GOOGLE_REGION}/publishers/google/models/${GOOGLE_IMAGEN_UPSCALE_MODEL}:predict`;
+}
 
 interface GoogleImagenRequest {
   instances: Array<{
@@ -142,14 +177,7 @@ class GoogleImagenMCPServer {
       scopes: ['https://www.googleapis.com/auth/cloud-platform'],
       credentials: process.env.GOOGLE_SERVICE_ACCOUNT_KEY ? 
         JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY) : undefined,
-      projectId: GOOGLE_PROJECT_ID,
     });
-
-    // 必要な環境変数のチェック
-    if (!GOOGLE_PROJECT_ID) {
-      console.error('GOOGLE_PROJECT_ID environment variable is required');
-      process.exit(1);
-    }
 
     this.setupToolHandlers();
     this.handleProcessArguments();
@@ -174,9 +202,9 @@ Options:
   -h, --help       Show help
   
 Environment Variables:
-  GOOGLE_PROJECT_ID               Google Cloud Project ID (required)
   GOOGLE_SERVICE_ACCOUNT_KEY      Service account JSON key (required)
-  GOOGLE_REGION                   Region (optional, default: us-central1)
+  GOOGLE_PROJECT_ID               Google Cloud Project ID (optional, auto-detected from service account)
+  GOOGLE_REGION                   Region (optional, default: asia-northeast1)
   GOOGLE_IMAGEN_MODEL            Model name (optional, default: imagen-3.0-generate-002)
   DEBUG                          Enable debug logging
 
@@ -407,8 +435,12 @@ It should be run by an MCP client like Claude Desktop.
         throw new Error('Failed to obtain access token');
       }
 
+      // プロジェクトIDを取得してAPIのURLを構築
+      const projectId = await getProjectId(this.auth);
+      const apiUrl = getImagenApiUrl(projectId);
+      
       const response = await axios.post<GoogleImagenResponse>(
-        GOOGLE_IMAGEN_API_URL,
+        apiUrl,
         requestBody,
         {
           headers: {
@@ -536,8 +568,12 @@ It should be run by an MCP client like Claude Desktop.
         throw new Error('Failed to obtain access token');
       }
 
+      // プロジェクトIDを取得してAPIのURLを構築
+      const projectId = await getProjectId(this.auth);
+      const apiUrl = getUpscaleApiUrl(projectId);
+      
       const response = await axios.post<GoogleImagenResponse>(
-        GOOGLE_IMAGEN_UPSCALE_API_URL,
+        apiUrl,
         requestBody,
         {
           headers: {
