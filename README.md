@@ -1,114 +1,93 @@
 # Google Imagen MCP Server
 
-Google ImagenのAPIを使用して画像を生成するMCP（Model Context Protocol）サーバーです。Claude DesktopなどのMCPクライアントで使用することで、チャット内から直接AI画像生成が可能になります。
+Google Imagen API を使用して画像を生成できる MCP（Model Context Protocol）対応サーバーです。Claude Desktop などの MCP クライアントと連携することで、チャット内から自然言語で画像生成が行えます。
 
-## 🌟 機能
+---
 
-- **🎨 画像生成**: テキストプロンプトから高品質な画像を生成
-- **📐 アスペクト比指定**: 1:1, 3:4, 4:3, 9:16, 16:9 の5種類のアスペクト比に対応
-- **🔍 アップスケーリング**: 既存画像を2倍または4倍に高品質拡大
-- **⚡ 統合処理**: 画像生成とアップスケーリングを一度の操作で実行
-- **🖼️ 直接表示モード**: base64エンコードでMCPクライアント内での画像表示
-- **🛡️ 安全性フィルター**: コンテンツの安全性レベルを細かく設定可能
-- **👤 人物生成制御**: 人物の生成ポリシーを柔軟に設定
-- **📁 画像管理**: 生成済み画像ファイルの一覧表示と管理
-- **🔧 デバッグモード**: トラブルシューティング用の詳細ログ出力
+## 🌟 主な機能
 
-## 📋 必要条件
+- 🎨 **画像生成**：テキストから高品質な画像を生成  
+- 📐 **アスペクト比の指定**：1:1, 3:4, 4:3, 9:16, 16:9 に対応  
+- 🔍 **アップスケーリング**：画像を 2 倍または 4 倍に高品質拡大  
+- ⚡ **統合処理**：生成と拡大を一括実行  
+- 🖼️ **直接表示モード**：チャット内に base64 表示  
+- 🛡️ **安全性フィルター**：安全レベルを柔軟に制御  
+- 👤 **人物生成制御**：人物の生成有無を細かく設定  
+- 📁 **画像管理**：生成済み画像の一覧表示・操作  
+- 🔧 **デバッグモード**：ログ出力によるトラブルシュート支援
 
-- **Node.js**: v18以上
-- **MCP対応クライアント**: Claude Desktop等
+---
 
-## 🚀 クイックスタート
+## 📋 前提条件
+
+- **Node.js** v18 以上  
+- **MCP 対応クライアント**（例：Claude Desktop、Claude Code）
+
+---
+
+## 🚀 セットアップ手順
 
 ### 1. Google Cloud サービスアカウントの作成
 
-#### サービスアカウントの作成手順
+#### 手順概要
 
-1. [Google Cloud Console](https://console.cloud.google.com/) にアクセス
-2. プロジェクトを作成または選択
-3. 「APIとサービス」→「ライブラリ」から「**Vertex AI API**」を検索して有効化
-4. 「IAMと管理」→「サービスアカウント」に移動
-5. 「サービスアカウントを作成」をクリック
-6. サービスアカウント名（例: `imagen-mcp-server`）を入力して「作成」
-7. ロールの選択で「**Vertex AI ユーザー**」を追加
-8. 「完了」をクリック
+1. [Google Cloud Console](https://console.cloud.google.com/) へアクセス  
+2. プロジェクトを作成または選択  
+3. 「APIとサービス」→「ライブラリ」で `Vertex AI API` を有効化  
+4. 「IAMと管理」→「サービスアカウント」→「サービスアカウントを作成」  
+5. 名前（例：`imagen-mcp-server`）を入力  
+6. ロールは「**Vertex AI ユーザー**」を選択し作成  
+7. 作成後、「キー」タブから「新しいキーを作成」→「JSON」形式を選びダウンロード
 
-#### サービスアカウントキーの生成
+> 🔐 **注意**：ダウンロードしたキーは厳重に保管してください。バージョン管理対象外にすることを推奨します。
 
-1. 作成したサービスアカウントをクリック
-2. 「キー」タブに移動
-3. 「キーを追加」→「新しいキーを作成」
-4. 「JSON」を選択して「作成」
-5. ダウンロードされたJSONファイルを安全な場所に保存
-
-**重要**: 
-- Imagen は Vertex AI の一部として提供されています。「Imagen API」という独立したAPIは存在しないため、「**Vertex AI API**」を有効化してください。
-- サービスアカウントキーファイルは機密情報です。安全に管理してください。
+---
 
 ### 2. プロジェクトのセットアップ
 
 ```bash
-# プロジェクトをクローンまたはダウンロード
 git clone https://github.com/ex-takashima/google-imagen-mcp-server.git
 cd google-imagen-mcp-server
 
-# 依存関係をインストール
-npm install
+npm install      # 依存関係のインストール
+npm run build    # TypeScript のコンパイル
+````
 
-# TypeScriptをコンパイル
-npm run build
-```
+---
 
-### 3. サービスアカウントキーファイルの配置
-
-ダウンロードしたJSONファイルを適切な場所に配置します：
+### 3. サービスアカウントキーの配置
 
 ```bash
-# 例: プロジェクトディレクトリに配置
-cp /path/to/downloaded/service-account-key.json ./google-service-account.json
+# プロジェクト直下に配置する例
+cp /path/to/key.json ./google-service-account.json
 
-# または、専用ディレクトリに配置
+# config ディレクトリへ配置する例
 mkdir -p ~/.config/google-cloud/
-cp /path/to/downloaded/service-account-key.json ~/.config/google-cloud/imagen-service-account.json
-```
+cp /path/to/key.json ~/.config/google-cloud/imagen-service-account.json
 
-**セキュリティ注意**: ファイルのアクセス権限を制限することを推奨します：
-
-```bash
+# アクセス制限（UNIX環境推奨）
 chmod 600 ./google-service-account.json
 ```
 
-### 4. インストール方法の選択
+---
 
-以下のいずれかの方法でインストールできます：
+### 4. インストール方法
 
-#### 🎯 方法A: npm link（開発・テスト用）
+#### A. 開発リンク（npm link）
 
 ```bash
-# プロジェクトディレクトリで
 npm link
-
-# 確認
 google-imagen-mcp-server --version
 ```
 
-#### 📦 方法B: ローカルパッケージ（推奨）
+#### B. ローカルパッケージとしてインストール（推奨）
 
 ```bash
-# パッケージを作成
 npm pack
-
-# グローバルインストール（Windows: PowerShellを管理者として実行）
 npm install -g ./google-imagen-mcp-server-*.tgz
-
-# 確認
-google-imagen-mcp-server --version
 ```
 
-#### 🌐 方法C: 直接パス指定（バックアップ案）
-
-グローバルインストールで問題がある場合は、Claude Desktop設定で直接パスを指定：
+#### C. Claude Desktop に直接パスを指定
 
 ```json
 {
@@ -117,24 +96,18 @@ google-imagen-mcp-server --version
       "command": "node",
       "args": ["C:\\projects\\google-imagen-mcp-server\\build\\index.js"],
       "env": {
-        "GOOGLE_APPLICATION_CREDENTIALS": "C:\\path\\to\\your\\google-service-account.json"
+        "GOOGLE_APPLICATION_CREDENTIALS": "C:\\path\\to\\your\\key.json"
       }
     }
   }
 }
 ```
 
-**💡 推奨**: 方法Bを試して、問題があれば方法Cを使用してください。
+---
 
-### 5. Claude Desktop での設定
+## ⚙ Claude Desktop の設定
 
-Claude Desktop の設定ファイルを編集します：
-
-**設定ファイルの場所:**
-- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
-
-#### 設定方法1: 環境変数でサービスアカウントキーを指定
+### 推奨設定（ファイルパスを指定）
 
 ```json
 {
@@ -142,53 +115,24 @@ Claude Desktop の設定ファイルを編集します：
     "google-imagen": {
       "command": "google-imagen-mcp-server",
       "env": {
-        "GOOGLE_SERVICE_ACCOUNT_KEY": "{\"type\":\"service_account\",\"project_id\":\"your-project-id\",...}"
+        "GOOGLE_APPLICATION_CREDENTIALS": "/path/to/google-service-account.json"
       }
     }
   }
 }
 ```
 
-#### 設定方法2: サービスアカウントキーファイルのパスを指定（推奨）
+> Windows環境ではパス区切りに注意：
+> `"C:\\Users\\User\\Documents\\key.json"`
 
-```json
-{
-  "mcpServers": {
-    "google-imagen": {
-      "command": "google-imagen-mcp-server",
-      "env": {
-        "GOOGLE_APPLICATION_CREDENTIALS": "/path/to/your/google-service-account.json"
-      }
-    }
-  }
-}
-```
+---
 
-**Windows の場合:**
-```json
-{
-  "mcpServers": {
-    "google-imagen": {
-      "command": "google-imagen-mcp-server",
-      "env": {
-        "GOOGLE_APPLICATION_CREDENTIALS": "C:\\path\\to\\your\\google-service-account.json"
-      }
-    }
-  }
-}
-```
+### Claude Desktop の再起動
 
-**重要**: 
-- プロジェクトIDは自動的にサービスアカウントキーファイルから取得されます
-- ファイルパスは絶対パスで指定してください
-- 設定方法2（ファイルパス指定）を推奨します
-- GOOGLE_PROJECT_ID環境変数の指定は不要になりました（オプションとして使用可能）
+設定ファイルを保存後、Claude Desktop を**完全に再起動**してください（タスクトレイからも終了推奨）。
 
-### 6. Claude Desktop を再起動
-
-設定ファイルを保存後、Claude Desktop を完全に終了して再起動してください。
-
-### 7. Claude Code での使用方法
+---
+### Claude Code での使用方法
 
 [Claude Code](https://claude.ai/code) でも同様にMCPサーバーとして使用できます。
 
@@ -225,534 +169,148 @@ Claude Code の設定ファイルに以下を追加してください：
 }
 ```
 
-#### 使用方法
+## 💬 使用方法の例（チャット内での自然言語）
 
-Claude Code では以下のようにリクエストできます：
-
-```
-美しい夕日が映る湖の風景の画像を生成してください
-```
+### 画像生成
 
 ```
-猫が宇宙服を着ている可愛いイラストを作って、ファイル名は "space_cat.png" で保存してください
+美しい夕日の風景を生成してください
 ```
 
-```
-現在のディレクトリにある画像ファイルを一覧表示してください
-```
-
-Claude Code では自然言語でのリクエストが可能で、適切なツールパラメーターに自動変換されます。
-
-## 🎯 使用方法
-
-Claude Desktop で以下のように話しかけるだけで画像生成ができます：
-
-### 基本的な使用例
+### アスペクト比指定
 
 ```
-美しい夕日が映る湖の風景の画像を生成してください
+16:9 のワイド画面で、山の風景を生成
 ```
 
-```
-猫が宇宙服を着ている可愛いイラストを作って、ファイル名は "space_cat.png" で保存してください
-```
+### アップスケーリング
 
 ```
-現在のフォルダにある画像ファイルを一覧表示してください
+"cat.jpg" を4倍に拡大してください
 ```
 
-### 新機能の使用例
-
-#### アスペクト比指定
-```
-横長ワイド画面（16:9）で美しい山の風景画像を生成してください
-```
+### 統合処理（生成 + 拡大）
 
 ```
-スマホ壁紙用の縦長（9:16）で可愛い動物の画像を作ってください
+宇宙の画像を縦長で生成し、2倍に拡大して表示してください
 ```
-
-#### アップスケーリング
-```
-"photo.jpg" を4倍にアップスケーリングして高解像度にしてください
-```
-
-#### 統合処理（生成+アップスケーリング）
-```
-ドラゴンの画像をワイド画面で生成して、2倍にアップスケーリングしてください
-```
-
-#### 直接表示モード
-```
-猫の画像を生成して、チャット内で直接表示してください（ファイル保存なし）
-```
-
-```
-"small_image.png" をアップスケーリングして、結果をここで見せてください
-```
-
-### 詳細なパラメーター指定
-
-より細かい制御をしたい場合は、以下のように具体的に指定できます：
-
-```
-ドラゴンの画像を生成してください。ファイル名は "dragon.png"、安全性レベルは高リスクのみブロック、人物生成は許可しないでお願いします。
-```
-
-```
-人物の画像を生成したいです。成人の生成を許可して、安全性レベルは中リスク以上をブロックしてください。ファイル名は "portrait.png" でお願いします。
-```
-
-```
-安全性フィルターを最も緩く設定して、"fantasy_art.png" というファイル名で幻想的なアート作品を生成してください。
-```
-
-### パラメーターの自然な指定方法
-
-Claude Desktopでは、以下のような**自然な日本語**でパラメーターを指定できます：
-
-| 指定したい内容 | 自然な表現例 |
-|---------------|-------------|
-| ファイル名 | "ファイル名は○○にして"<br>"○○.pngで保存して"<br>"○○という名前で保存" |
-| アスペクト比 | "横長で生成して"<br>"16:9のワイド画面で"<br>"縦長の画像で" |
-| 表示モード | "チャット内で画像を表示して"<br>"ファイル保存せずに直接見せて"<br>"画像を表示してください" |
-| 安全性レベル | "安全性フィルターを緩くして"<br>"高リスクのみブロック"<br>"フィルターなしで" |
-| 人物生成 | "人物は生成しないで"<br>"成人の生成を許可"<br>"人物も含めて生成" |
-| 保存場所 | "Desktopに保存"<br>"画像フォルダに保存"<br>"C:\images\ フォルダに保存" |
-
-## 🛠️ 利用可能なツール
-
-### 1. generate_image
-
-**説明**: テキストプロンプトから画像を生成します
-
-**⚠️ 重要**: パラメーターはClaude Desktopの**チャット内で自然な日本語**で指定します。JSON形式で直接入力する必要はありません。
-
-#### パラメーター詳細
-
-| パラメータ | 型 | 必須 | デフォルト | 説明 |
-|------------|----|----|-----------|------|
-| `prompt` | string | ✅ | - | 画像を描写するテキストプロンプト |
-| `output_path` | string | ❌ | "generated_image.png" | 保存先ファイルパス |
-| `aspect_ratio` | string | ❌ | "1:1" | アスペクト比（1:1, 3:4, 4:3, 9:16, 16:9） |
-| `return_base64` | boolean | ❌ | false | チャット内での画像表示モード |
-| `safety_level` | string | ❌ | "BLOCK_MEDIUM_AND_ABOVE" | 安全性フィルターレベル |
-| `person_generation` | string | ❌ | "DONT_ALLOW" | 人物生成ポリシー |
-
-#### 安全性レベルの設定方法
-
-| レベル | 説明 | Claude Desktopでの指定方法 |
-|--------|------|---------------------------|
-| `BLOCK_NONE` | フィルターなし | "安全性フィルターなしで"<br>"フィルターを無効にして" |
-| `BLOCK_ONLY_HIGH` | 高リスクのみブロック | "安全性フィルターを緩くして"<br>"高リスクのみブロック" |
-| `BLOCK_MEDIUM_AND_ABOVE` | 中リスク以上をブロック | "標準の安全性で"<br>"通常の安全性レベルで" |
-| `BLOCK_LOW_AND_ABOVE` | 低リスク以上をブロック | "安全性を厳しくして"<br>"厳格な安全性フィルターで" |
-
-#### 人物生成ポリシーの設定方法
-
-| ポリシー | 説明 | Claude Desktopでの指定方法 |
-|----------|------|---------------------------|
-| `DONT_ALLOW` | 人物生成を許可しない | "人物は生成しないで"<br>"人を含めずに生成" |
-| `ALLOW_ADULT` | 成人の生成を許可 | "成人の生成を許可して"<br>"大人の人物は含めてもOK" |
-| `ALLOW_ALL` | すべての人物生成を許可 | "人物も含めて生成して"<br>"人を含めてもOK" |
-
-#### 📝 実際の使用例（Claude Desktopでの会話）
-
-**例1: 基本的な画像生成**
-```
-ユーザー: 美しい桜の木の画像を生成してください
-
-Claude: [generate_imageツールを使用]
-→ prompt: "美しい桜の木"
-→ output_path: "generated_image.png" (デフォルト)
-→ safety_level: "BLOCK_MEDIUM_AND_ABOVE" (デフォルト)
-→ person_generation: "DONT_ALLOW" (デフォルト)
-```
-
-**例2: ファイル名を指定**
-```
-ユーザー: 猫の画像を生成して、ファイル名は "cute_cat.png" にしてください
-
-Claude: [generate_imageツールを使用]
-→ prompt: "猫"
-→ output_path: "cute_cat.png"
-→ その他はデフォルト値
-```
-
-**例3: 詳細なパラメーター指定**
-```
-ユーザー: 人物のポートレートを生成してください。成人の生成を許可して、安全性レベルは高リスクのみブロック、ファイル名は "portrait.png" でお願いします。
-
-Claude: [generate_imageツールを使用]
-→ prompt: "人物のポートレート"
-→ output_path: "portrait.png"
-→ safety_level: "BLOCK_ONLY_HIGH"
-→ person_generation: "ALLOW_ADULT"
-```
-
-**例4: 保存場所を指定**
-```
-ユーザー: ドラゴンの画像を Desktop/images フォルダに "dragon.png" として保存してください
-
-Claude: [generate_imageツールを使用]
-→ prompt: "ドラゴン"
-→ output_path: "Desktop/images/dragon.png"
-→ その他はデフォルト値
-```
-
-#### 🚨 注意事項
-
-- **JSON形式での入力は不要**: Claude Desktopでは自然な日本語で指定するだけです
-- **プロンプトの質**: より詳細で具体的なプロンプトほど高品質な画像が生成されます
-- **英語プロンプト**: 英語でプロンプトを書くとより良い結果が得られる場合があります
-- **ファイルパス**: 相対パス（例: "images/photo.png"）と絶対パス（例: "C:\Users\Name\Desktop\photo.png"）の両方に対応
-
-#### アスペクト比の設定方法
-
-| 比率 | 説明 | 用途 | Claude Desktopでの指定方法 |
-|------|------|------|---------------------------|
-| `1:1` | 正方形 | SNS投稿、アイコン | "正方形で"<br>"1:1で生成" |
-| `3:4` | 縦長 | ポートレート、モバイル壁紙 | "縦長で"<br>"ポートレート形式で" |
-| `4:3` | 横長 | 従来のテレビ画面 | "4:3で"<br>"従来の画面比率で" |
-| `9:16` | 縦長ワイド | スマホ動画、ストーリー | "スマホ動画サイズで"<br>"縦長ワイドで" |
-| `16:9` | 横長ワイド | 現代のテレビ、風景 | "ワイド画面で"<br>"16:9で生成"<br>"横長で" |
-
-#### 直接表示モードについて
-
-`return_base64` を有効にすると、生成した画像を**Claude Desktop内で直接表示**できます：
-
-- **利点**: ファイル保存せずに即座に画像確認
-- **用途**: プレビュー、アイデア検討、迅速な確認
-- **制限**: 画像サイズが大きい場合、表示に時間がかかる場合があります
-
-### 2. upscale_image
-
-**説明**: 既存の画像を2倍または4倍にアップスケーリング（高品質拡大）します
-
-#### パラメーター詳細
-
-| パラメータ | 型 | 必須 | デフォルト | 説明 |
-|------------|----|----|-----------|------|
-| `input_path` | string | ✅ | - | アップスケーリングする画像ファイルパス |
-| `output_path` | string | ❌ | "upscaled_[元ファイル名]" | 保存先ファイルパス |
-| `scale_factor` | string | ❌ | "2" | 拡大倍率（"2" または "4"） |
-| `return_base64` | boolean | ❌ | false | チャット内での画像表示モード |
-
-#### 📝 実際の使用例（Claude Desktopでの会話）
-
-**例1: 基本的なアップスケーリング**
-```
-ユーザー: "photo.png" を2倍にアップスケーリングしてください
-
-Claude: [upscale_imageツールを使用]
-→ input_path: "photo.png"
-→ scale_factor: "2" (デフォルト)
-→ output_path: "upscaled_2x_photo.png" (自動生成)
-```
-
-**例2: 4倍アップスケーリング**
-```
-ユーザー: "small_icon.png" を4倍に拡大して "large_icon.png" として保存してください
-
-Claude: [upscale_imageツールを使用]
-→ input_path: "small_icon.png"
-→ scale_factor: "4"
-→ output_path: "large_icon.png"
-```
-
-**例3: 直接表示モード**
-```
-ユーザー: "画像.jpg" をアップスケーリングして、チャット内で表示してください
-
-Claude: [upscale_imageツールを使用]
-→ input_path: "画像.jpg"
-→ return_base64: true
-→ その他はデフォルト値
-```
-
-### 3. generate_and_upscale_image
-
-**説明**: 画像生成とアップスケーリングを一度の操作で実行します
-
-#### パラメーター詳細
-
-| パラメータ | 型 | 必須 | デフォルト | 説明 |
-|------------|----|----|-----------|------|
-| `prompt` | string | ✅ | - | 画像を描写するテキストプロンプト |
-| `output_path` | string | ❌ | "generated_upscaled_image.png" | 最終画像の保存先 |
-| `aspect_ratio` | string | ❌ | "1:1" | アスペクト比（1:1, 3:4, 4:3, 9:16, 16:9） |
-| `scale_factor` | string | ❌ | "2" | アップスケール倍率（"2" または "4"） |
-| `return_base64` | boolean | ❌ | false | チャット内での画像表示モード |
-| `safety_level` | string | ❌ | "BLOCK_MEDIUM_AND_ABOVE" | 安全性フィルターレベル |
-| `person_generation` | string | ❌ | "DONT_ALLOW" | 人物生成ポリシー |
-
-#### 📝 実際の使用例（Claude Desktopでの会話）
-
-**例1: 高解像度画像を一度で生成**
-```
-ユーザー: 美しい夕日の風景を生成して、4倍にアップスケーリングしてください
-
-Claude: [generate_and_upscale_imageツールを使用]
-→ prompt: "美しい夕日の風景"
-→ scale_factor: "4"
-→ その他はデフォルト値
-```
-
-**例2: ワイド画面で高解像度画像**
-```
-ユーザー: 宇宙の画像を16:9のワイド画面で生成して、2倍に拡大してチャット内で表示してください
-
-Claude: [generate_and_upscale_imageツールを使用]
-→ prompt: "宇宙"
-→ aspect_ratio: "16:9"
-→ scale_factor: "2"
-→ return_base64: true
-```
-
-**例3: 完全カスタム設定**
-```
-ユーザー: ドラゴンの画像を縦長で生成し、4倍にアップスケーリングして "dragon_4k.png" として保存。人物生成は許可しないで、安全性フィルターは高リスクのみブロックしてください。
-
-Claude: [generate_and_upscale_imageツールを使用]
-→ prompt: "ドラゴン"
-→ output_path: "dragon_4k.png"
-→ aspect_ratio: "3:4" (縦長)
-→ scale_factor: "4"
-→ safety_level: "BLOCK_ONLY_HIGH"
-→ person_generation: "DONT_ALLOW"
-```
-
-### 4. list_generated_images
-
-**説明**: 指定されたディレクトリ内の画像ファイル一覧を表示します
-
-**パラメータ:**
-
-| パラメータ | 型 | 必須 | デフォルト | 説明 |
-|------------|----|----|-----------|------|
-| `directory` | string | ❌ | "." | 検索するディレクトリパス |
-
-#### 📝 実際の使用例
-
-**例1: 現在のフォルダの画像一覧**
-```
-ユーザー: 現在のフォルダにある画像ファイルを一覧表示してください
-
-Claude: [list_generated_imagesツールを使用]
-→ directory: "." (デフォルト)
-```
-
-**例2: 特定フォルダの画像一覧**
-```
-ユーザー: Desktop/photos フォルダにある画像ファイルを表示してください
-
-Claude: [list_generated_imagesツールを使用]
-→ directory: "Desktop/photos"
-```
-
-## 🔧 開発・カスタマイズ
-
-### 開発環境でのテスト
-
-```bash
-# 開発モードで実行
-npm run dev
-
-# デバッグモードで実行
-DEBUG=1 npm run dev
-```
-
-### カスタムビルド
-
-```bash
-# TypeScriptコンパイル
-npm run build
-
-# 配布用パッケージ作成
-npm pack
-```
-
-### デバッグモード
-
-詳細なログを確認したい場合は、Claude Desktop設定で `DEBUG` 環境変数を追加：
-
-```json
-{
-  "mcpServers": {
-    "google-imagen": {
-      "command": "google-imagen-mcp-server",
-      "env": {
-        "GOOGLE_APPLICATION_CREDENTIALS": "/path/to/your/service-account.json",
-        "DEBUG": "1"
-      }
-    }
-  }
-}
-```
-
-## 🔍 トラブルシューティング
-
-### よくある問題と解決方法
-
-#### 🚫 サーバーが認識されない
-
-**原因**: パスまたは権限の問題
-
-**解決策**:
-```bash
-# コマンドの存在確認
-which google-imagen-mcp-server  # macOS/Linux
-where google-imagen-mcp-server  # Windows
-
-# 権限で問題がある場合（Windows）
-# PowerShellを管理者として実行してインストール
-```
-
-#### 🔑 認証エラー
-
-**エラーメッセージ**: `Failed to obtain access token` または認証関連エラー
-
-**解決策**:
-1. サービスアカウントキーファイルのパスが正しいか確認
-2. **Vertex AI API** が有効化されているか確認（Imagen APIという独立したAPIは存在しません）
-3. サービスアカウントに「Vertex AI ユーザー」ロールが付与されているか確認
-4. サービスアカウントキーファイルの形式が正しいJSON形式か確認
-5. プロジェクトIDがサービスアカウントキーに含まれているか確認（自動取得のため）
-
-#### 💰 課金設定エラー
-
-**エラーメッセージ**: Billing account related errors
-
-**解決策**:
-1. Google Cloud で請求先アカウントが設定されているか確認
-
-
-#### 🖼️ 画像生成エラー
-
-**原因**: プロンプトが安全性フィルターに引っかかった場合
-
-**解決策**:
-1. プロンプトの内容を調整
-2. `safety_level` を `BLOCK_ONLY_HIGH` に緩和
-3. 具体的で建設的な表現に変更
-
-#### 🔍 アップスケーリングエラー
-
-**原因**: 入力画像ファイルが見つからない、またはファイル形式が非対応
-
-**解決策**:
-1. ファイルパスが正しいか確認
-2. 対応画像形式（PNG, JPG, JPEG, GIF, WEBP）か確認
-3. ファイルのアクセス権限を確認
-
-#### ⚡ 統合処理（generate_and_upscale_image）エラー
-
-**原因**: 画像生成またはアップスケーリング処理のいずれかで失敗
-
-**解決策**:
-1. まず `generate_image` 単体でテスト
-2. 生成された画像で `upscale_image` 単体でテスト
-3. 両方が成功することを確認してから統合処理を実行
-
-#### 🖼️ 直接表示モード（base64）で画像が表示されない
-
-**原因**: MCPクライアントが画像表示に対応していない、または画像サイズが大きすぎる
-
-**解決策**:
-1. Claude Desktopを最新バージョンに更新
-2. `return_base64: false` にしてファイル保存モードに切り替え
-3. 小さめのアスペクト比（1:1）や低いアップスケール倍率（2倍）を試す
-
-
-#### 📝 ログの確認
-
-**Claude Desktop のログ場所:**
-- **macOS**: `~/Library/Logs/Claude/`
-- **Windows**: `%APPDATA%\Claude\logs\`
-
-### バージョン確認
-
-```bash
-# MCPサーバーのバージョン
-google-imagen-mcp-server --version
-
-# Node.js バージョン（v18以上必要）
-node --version
-
-# npm バージョン
-npm --version
-```
-
-## 📖 APIリファレンス
-
-### コマンドライン引数
-
-```bash
-# ヘルプ表示
-google-imagen-mcp-server --help
-
-# バージョン表示
-google-imagen-mcp-server --version
-```
-
-### 環境変数
-
-| 変数名 | 必須 | 説明 |
-|--------|-----|------|
-| `GOOGLE_APPLICATION_CREDENTIALS` | ✅* | サービスアカウントキーファイルのパス |
-| `GOOGLE_SERVICE_ACCOUNT_KEY` | ✅* | サービスアカウントキーのJSON文字列 |
-| `GOOGLE_PROJECT_ID` | ❌ | Google CloudプロジェクトID（自動取得、手動指定も可能） |
-| `GOOGLE_REGION` | ❌ | リージョン (デフォルト: asia-northeast1) |
-| `GOOGLE_IMAGEN_MODEL` | ❌ | 使用する画像生成モデル名 (デフォルト: `imagen-3.0-generate-002`) |
-| `GOOGLE_IMAGEN_UPSCALE_MODEL` | ❌ | 使用するアップスケーリングモデル名 (デフォルト: `imagegeneration@002`) |
-| `DEBUG` | ❌ | デバッグログの有効化（"1"で有効） |
-
-***認証について**: `GOOGLE_APPLICATION_CREDENTIALS` または `GOOGLE_SERVICE_ACCOUNT_KEY` のいずれか一つが必須です。ファイルパス指定（`GOOGLE_APPLICATION_CREDENTIALS`）を推奨します。プロジェクトIDはサービスアカウントキーファイルから自動的に取得されます。
-
-## 🔒 セキュリティ注意事項
-
-- **サービスアカウントキーの管理**: サービスアカウントキーファイルは機密情報です。設定ファイルやキーファイルを他人と共有しないでください
-- **ファイルアクセス権限**: サービスアカウントキーファイルのアクセス権限を制限してください（例: `chmod 600`）
-- **定期的なローテーション**: セキュリティのため、サービスアカウントキーを定期的に更新することを推奨
-- **最小権限の原則**: サービスアカウントには必要最小限の権限（Vertex AI ユーザー）のみを付与
-- **不要なキーの削除**: 使用しなくなったサービスアカウントキーは速やかに削除してください
-- **バージョン管理システムへの注意**: `.gitignore`でサービスアカウントキーファイルを除外してください
-
-## 💰 費用について
-
-Google Imagen は Vertex AI の一部として従量課金制です。詳細な料金については [Vertex AI Pricing](https://cloud.google.com/vertex-ai/pricing) をご確認ください。
-
-**価格例**（2025年7月時点）:
-- **Imagen 3 (image generation)**: 約 $0.020 / 画像
-
-**注意**: 料金は変更される可能性があるため、必ず公式サイトをご確認ください。
-
-**無料枠について**:
-- **Google Cloud 無料トライアル**: 新規ユーザーは90日間で$300のクレジットを利用可能
-- Vertex AI自体には月間の無料枠はありませんが、Google Cloud Consoleの無料枠プログラムが適用される場合があります
-- 既にBigQueryやCloud StorageなどのGoogle Cloudサービスを利用している場合は、無料枠を活用してVertex AIをお試しできます
-- これは変更になる場合がありますので、Googleサイトで確認してください
-
-## 🤝 コントリビューション
-
-プルリクエストやイシューの報告を歓迎します！
-
-1. このリポジトリをフォーク
-2. feature ブランチを作成 (`git checkout -b feature/amazing-feature`)
-3. 変更をコミット (`git commit -m 'Add amazing feature'`)
-4. ブランチにプッシュ (`git push origin feature/amazing-feature`)
-5. プルリクエストを開く
-
-## 📄 ライセンス
-
-MIT License - 詳細は [LICENSE](LICENSE) ファイルをご覧ください。
-
-## 🙏 謝辞
-
-- [Model Context Protocol](https://modelcontextprotocol.io/) by Anthropic
-- [Google Cloud Vertex AI Imagen](https://cloud.google.com/vertex-ai/generative-ai/docs/image/overview)
 
 ---
 
-**💡 ヒント**: 画像生成がうまくいかない場合は、プロンプトをより具体的で詳細な内容に変更してみてください。英語のプロンプトの方が高品質な結果が得られる場合があります。
+## 🛠 利用可能な MCP ツール
+
+### 1. `generate_image`
+
+テキストから画像を生成します。
+
+* `prompt`（必須）: テキストプロンプト
+* `output_path`: 保存ファイル名（省略可）
+* `aspect_ratio`: 画像比率（例: 1:1, 16:9）
+* `return_base64`: チャット内表示モード
+* `safety_level`: 安全性フィルター（BLOCK\_NONE〜BLOCK\_LOW\_AND\_ABOVE）
+* `person_generation`: 人物生成ポリシー（DONT\_ALLOW, ALLOW\_ADULT, ALLOW\_ALL）
+
+---
+
+### 2. `upscale_image`
+
+画像を 2 倍 / 4 倍にアップスケールします。
+
+* `input_path`（必須）: 入力ファイルパス
+* `scale_factor`: 倍率（デフォルト: 2）
+* `output_path`: 保存ファイル名（省略可）
+* `return_base64`: チャット内表示
+
+---
+
+### 3. `generate_and_upscale_image`
+
+画像生成とアップスケーリングを一括で行います。
+`generate_image` と `upscale_image` の統合処理です。
+
+---
+
+### 4. `list_generated_images`
+
+ディレクトリ内の画像ファイルを一覧表示します。
+
+* `directory`: 検索対象フォルダ（省略時はカレントディレクトリ）
+
+---
+
+## 🧪 開発・テスト
+
+```bash
+npm run dev         # 開発モード
+DEBUG=1 npm run dev # デバッグモード（詳細ログあり）
+```
+
+---
+
+## 🐞 トラブルシューティング
+
+| 症状            | 解決策                                           |
+| ------------- | --------------------------------------------- |
+| サーバーが起動しない    | パスや Node.js バージョン、サービスアカウント権限を確認              |
+| 認証エラー         | `GOOGLE_APPLICATION_CREDENTIALS` のパスとロール設定を確認 |
+| 画像生成失敗        | プロンプトをより具体的にするか、`safety_level` を緩和            |
+| アップスケーリング失敗   | 入力ファイルの存在と画像形式（PNG, JPG など）を確認                |
+| base64 表示されない | Claude が対応していない、または画像が大きすぎる可能性あり              |
+
+---
+
+## 📖 コマンドラインと環境変数
+
+```bash
+google-imagen-mcp-server --help
+google-imagen-mcp-server --version
+```
+
+| 変数名                              | 必須 | 説明                          |
+| -------------------------------- | -- | --------------------------- |
+| `GOOGLE_APPLICATION_CREDENTIALS` | ✅  | サービスアカウントJSONの絶対パス          |
+| `GOOGLE_SERVICE_ACCOUNT_KEY`     | ✅  | JSON文字列として直接渡す（代替手段）        |
+| `GOOGLE_PROJECT_ID`              | ❌  | プロジェクトID（通常は自動取得）           |
+| `GOOGLE_REGION`                  | ❌  | 利用リージョン（例: asia-northeast1） |
+| `DEBUG`                          | ❌  | "1" を指定するとデバッグログ有効          |
+
+---
+
+## 🔒 セキュリティ上の注意点
+
+* サービスアカウントキーは `.gitignore` に追加し、公開しないでください
+* 最小権限の原則に従い、`Vertex AI ユーザー` 権限のみを付与
+* 不要なキーは即削除し、必要に応じて定期的にローテーションしてください
+
+---
+
+## 💰 料金について
+
+* Imagen 3（画像生成）: 約 `$0.020` / 画像（2025年7月時点）
+* アップスケーリング費用も別途発生します
+* 無料枠：Google Cloud 新規ユーザーは \$300 分の無料クレジットあり
+
+> 価格は変更される場合があります。最新情報は [公式ページ](https://cloud.google.com/vertex-ai/pricing) をご確認ください。
+
+---
+
+## 🤝 コントリビューション歓迎
+
+1. リポジトリをフォーク
+2. ブランチを作成（例: `feature/add-func`）
+3. 変更をコミット・プッシュ
+4. プルリクエストを送信
+
+---
+
+## 📄 ライセンス
+
+MIT License（詳細は `LICENSE` ファイルを参照）
+
+---
+
+## 🙏 謝辞
+
+* [Model Context Protocol](https://modelcontextprotocol.io/)
+* [Google Cloud Vertex AI Imagen](https://cloud.google.com/vertex-ai/generative-ai/docs/image/overview)
 

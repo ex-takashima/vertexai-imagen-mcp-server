@@ -188,3 +188,4 @@ secrets.json
 # Test files
 test-images/
 examples/generated/
+/.obsidian
