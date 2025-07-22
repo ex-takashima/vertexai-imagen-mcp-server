@@ -13,7 +13,7 @@ import path from 'path';
 import { GoogleAuth } from 'google-auth-library';
 
 // Google Imagen API の設定
-const GOOGLE_REGION = process.env.GOOGLE_REGION || 'asia-northeast1';
+const GOOGLE_REGION = process.env.GOOGLE_REGION || 'us-central1';
 const GOOGLE_IMAGEN_MODEL = process.env.GOOGLE_IMAGEN_MODEL || 'imagen-3.0-generate-002';
 const GOOGLE_IMAGEN_UPSCALE_MODEL = process.env.GOOGLE_IMAGEN_UPSCALE_MODEL || 'imagegeneration@002';
 
@@ -48,13 +48,15 @@ async function getProjectId(auth: GoogleAuth): Promise<string> {
 }
 
 // APIのURLを動的に生成する関数
-function getImagenApiUrl(projectId: string, model?: string): string {
+function getImagenApiUrl(projectId: string, model?: string, region?: string): string {
   const selectedModel = model || GOOGLE_IMAGEN_MODEL;
-  return `https://${GOOGLE_REGION}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${GOOGLE_REGION}/publishers/google/models/${selectedModel}:predict`;
+  const selectedRegion = region || GOOGLE_REGION;
+  return `https://${selectedRegion}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${selectedRegion}/publishers/google/models/${selectedModel}:predict`;
 }
 
-function getUpscaleApiUrl(projectId: string): string {
-  return `https://${GOOGLE_REGION}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${GOOGLE_REGION}/publishers/google/models/${GOOGLE_IMAGEN_UPSCALE_MODEL}:predict`;
+function getUpscaleApiUrl(projectId: string, region?: string): string {
+  const selectedRegion = region || GOOGLE_REGION;
+  return `https://${selectedRegion}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${selectedRegion}/publishers/google/models/${GOOGLE_IMAGEN_UPSCALE_MODEL}:predict`;
 }
 
 interface GoogleImagenRequest {
@@ -105,7 +107,8 @@ interface GenerateImageArgs {
   safety_level?: "BLOCK_NONE" | "BLOCK_ONLY_HIGH" | "BLOCK_MEDIUM_AND_ABOVE" | "BLOCK_LOW_AND_ABOVE";
   person_generation?: "DONT_ALLOW" | "ALLOW_ADULT" | "ALLOW_ALL";
   language?: "auto" | "en" | "zh" | "zh-TW" | "hi" | "ja" | "ko" | "pt" | "es";
-  model?: "imagen-3.0-generate-002" | "imagen-3.0-fast-generate-001" | "imagen-4.0-generate-preview-06-06" | "imagen-4.0-fast-generate-preview-06-06" | "imagen-4.0-ultra-generate-preview-06-06";
+  model?: "imagen-4.0-ultra-generate-preview-06-06" | "imagen-4.0-fast-generate-preview-06-06" | "imagen-4.0-generate-preview-06-06" | "imagen-3.0-generate-002" | "imagen-3.0-fast-generate-001";
+  region?: string;
 }
 
 interface UpscaleImageArgs {
@@ -113,6 +116,7 @@ interface UpscaleImageArgs {
   output_path?: string;
   scale_factor?: "2" | "4";
   return_base64?: boolean;
+  region?: string;
 }
 
 interface GenerateAndUpscaleImageArgs {
@@ -124,7 +128,8 @@ interface GenerateAndUpscaleImageArgs {
   safety_level?: "BLOCK_NONE" | "BLOCK_ONLY_HIGH" | "BLOCK_MEDIUM_AND_ABOVE" | "BLOCK_LOW_AND_ABOVE";
   person_generation?: "DONT_ALLOW" | "ALLOW_ADULT" | "ALLOW_ALL";
   language?: "auto" | "en" | "zh" | "zh-TW" | "hi" | "ja" | "ko" | "pt" | "es";
-  model?: "imagen-3.0-generate-002" | "imagen-3.0-fast-generate-001" | "imagen-4.0-generate-preview-06-06" | "imagen-4.0-fast-generate-preview-06-06" | "imagen-4.0-ultra-generate-preview-06-06";
+  model?: "imagen-4.0-ultra-generate-preview-06-06" | "imagen-4.0-fast-generate-preview-06-06" | "imagen-4.0-generate-preview-06-06" | "imagen-3.0-generate-002" | "imagen-3.0-fast-generate-001";
+  region?: string;
 }
 
 interface ListGeneratedImagesArgs {
@@ -210,7 +215,7 @@ Options:
 Environment Variables:
   GOOGLE_SERVICE_ACCOUNT_KEY      Service account JSON key (required)
   GOOGLE_PROJECT_ID               Google Cloud Project ID (optional, auto-detected from service account)
-  GOOGLE_REGION                   Region (optional, default: asia-northeast1)
+  GOOGLE_REGION                   Region (optional, default: us-central1)
   GOOGLE_IMAGEN_MODEL            Model name (optional, default: imagen-3.0-generate-002)
   DEBUG                          Enable debug logging
 
@@ -265,8 +270,12 @@ It should be run by an MCP client like Claude Desktop.
                 },
                 model: {
                   type: "string",
-                  enum: ["imagen-3.0-generate-002", "imagen-3.0-fast-generate-001", "imagen-4.0-generate-preview-06-06", "imagen-4.0-fast-generate-preview-06-06", "imagen-4.0-ultra-generate-preview-06-06"],
+                  enum: ["imagen-4.0-ultra-generate-preview-06-06", "imagen-4.0-fast-generate-preview-06-06", "imagen-4.0-generate-preview-06-06", "imagen-3.0-generate-002", "imagen-3.0-fast-generate-001"],
                   description: "Imagen model to use (default: imagen-3.0-generate-002)",
+                },
+                region: {
+                  type: "string",
+                  description: "Google Cloud region to use (default: from environment variable GOOGLE_REGION or us-central1)",
                 }
               },
               required: ["prompt"],
@@ -294,6 +303,10 @@ It should be run by an MCP client like Claude Desktop.
                 return_base64: {
                   type: "boolean",
                   description: "Return image as base64 encoded data for display in MCP client instead of saving to file (default: false)",
+                },
+                region: {
+                  type: "string",
+                  description: "Google Cloud region to use (default: from environment variable GOOGLE_REGION or us-central1)",
                 }
               },
               required: ["input_path"],
@@ -344,8 +357,12 @@ It should be run by an MCP client like Claude Desktop.
                 },
                 model: {
                   type: "string",
-                  enum: ["imagen-3.0-generate-002", "imagen-3.0-fast-generate-001", "imagen-4.0-generate-preview-06-06", "imagen-4.0-fast-generate-preview-06-06", "imagen-4.0-ultra-generate-preview-06-06"],
+                  enum: ["imagen-4.0-ultra-generate-preview-06-06", "imagen-4.0-fast-generate-preview-06-06", "imagen-4.0-generate-preview-06-06", "imagen-3.0-generate-002", "imagen-3.0-fast-generate-001"],
                   description: "Imagen model to use (default: imagen-3.0-generate-002)",
+                },
+                region: {
+                  type: "string",
+                  description: "Google Cloud region to use (default: from environment variable GOOGLE_REGION or us-central1)",
                 }
               },
               required: ["prompt"],
@@ -408,7 +425,8 @@ It should be run by an MCP client like Claude Desktop.
       safety_level = "BLOCK_MEDIUM_AND_ABOVE",
       person_generation = "DONT_ALLOW",
       language = "auto",
-      model = "imagen-3.0-generate-002"
+      model = "imagen-3.0-generate-002",
+      region
     } = args;
 
     if (!prompt || typeof prompt !== 'string') {
@@ -467,7 +485,7 @@ It should be run by an MCP client like Claude Desktop.
 
       // プロジェクトIDを取得してAPIのURLを構築
       const projectId = await getProjectId(this.auth);
-      const apiUrl = getImagenApiUrl(projectId, model);
+      const apiUrl = getImagenApiUrl(projectId, model, region);
       
       const response = await axios.post<GoogleImagenResponse>(
         apiUrl,
@@ -549,7 +567,8 @@ It should be run by an MCP client like Claude Desktop.
       input_path,
       output_path,
       scale_factor = "2",
-      return_base64 = false
+      return_base64 = false,
+      region
     } = args;
 
     if (!input_path || typeof input_path !== 'string') {
@@ -600,7 +619,7 @@ It should be run by an MCP client like Claude Desktop.
 
       // プロジェクトIDを取得してAPIのURLを構築
       const projectId = await getProjectId(this.auth);
-      const apiUrl = getUpscaleApiUrl(projectId);
+      const apiUrl = getUpscaleApiUrl(projectId, region);
       
       const response = await axios.post<GoogleImagenResponse>(
         apiUrl,
@@ -690,7 +709,8 @@ It should be run by an MCP client like Claude Desktop.
       safety_level = "BLOCK_MEDIUM_AND_ABOVE",
       person_generation = "DONT_ALLOW",
       language = "auto",
-      model = "imagen-3.0-generate-002"
+      model = "imagen-3.0-generate-002",
+      region
     } = args;
 
     if (!prompt || typeof prompt !== 'string') {
@@ -716,7 +736,8 @@ It should be run by an MCP client like Claude Desktop.
         safety_level,
         person_generation,
         language,
-        model
+        model,
+        region
       };
 
       const generateResult = await this.generateImage(generateArgs);
@@ -730,7 +751,8 @@ It should be run by an MCP client like Claude Desktop.
         input_path: tempImagePath,
         output_path: return_base64 ? undefined : output_path,
         scale_factor,
-        return_base64
+        return_base64,
+        region
       };
 
       const upscaleResult = await this.upscaleImage(upscaleArgs);

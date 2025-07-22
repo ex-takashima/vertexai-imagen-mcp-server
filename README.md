@@ -301,7 +301,7 @@ Claude Code の設定ファイルに以下を追加してください：
 | `imagen-3.0-generate-002` | Imagen 3（標準）| バランスの取れた品質と速度（**デフォルト**） |
 | `imagen-3.0-fast-generate-001` | Imagen 3 Fast | 高速生成、品質は標準より劣る |
 | `imagen-4.0-generate-preview-06-06` | Imagen 4 | より高品質な画像生成 |
-| `imagen-4.0-fast-generate-preview-06-06` | Imagen 4 Fast | Imagen 4の高速版 |
+| `imagen-4.0-fast-generate-preview-06-06` | Imagen 4 Fast | 高速かつ高品質な画像生成 |
 | `imagen-4.0-ultra-generate-preview-06-06` | Imagen 4 Ultra | 最高品質（処理時間が長い） |
 
 **使用例:**
@@ -376,7 +376,7 @@ google-imagen-mcp-server --version
 
 ## 💰 料金について
 
-Google Imagen は Vertex AI の Generative AI モデルの一部として提供されており、**従量課金制**です。
+Vertex AI の Generative AI モデルの一部を利用しており、**従量課金制**です。
 
 - 最新の価格は以下を参照してください：  
   [https://cloud.google.com/vertex-ai/generative-ai/pricing?hl=ja](https://cloud.google.com/vertex-ai/generative-ai/pricing?hl=ja)
