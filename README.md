@@ -194,6 +194,106 @@ Claude Code の設定ファイルに以下を追加してください：
 ```
 宇宙の画像を縦長で生成し、2倍に拡大して表示してください
 ```
+## 🧪 使用例（Claude Code 指示文）
+以下は、Claude Code で Google Imagen MCP サーバーを使用して画像を生成・保存するための自然言語プロンプトの例です。  
+保存先は `<<PROJECT_FOLDER>>\docs\images\` を想定しています。
+
+
+### 🏞️ 例1：美しい夕日の風景
+
+```text
+「美しい夕日の風景」をテーマに画像を生成し、横長の 16:9 比率でお願いします。
+人物は含めず、安全性フィルターは標準（中リスク以上をブロック）で。
+保存ファイル名は sunset_landscape.png としてください。
+```
+
+![例1](./docs/images/sunset_landscape.png)
+---
+### 🐱 例2：宇宙服を着た猫のイラスト
+
+```text
+宇宙服を着て星空を漂っている可愛い猫のイラストを生成してください。
+正方形（1:1）の比率で、人物生成は許可せず、安全性フィルターは高リスクのみブロックでお願いします。
+保存先ファイルは space_cat.png にしてください。
+```
+![例2](./docs/images/space_cat.png)
+***注意:意図しない画像の生成や、プロンプトの内容によっては安全性フィルターにより画像生成に失敗することがあります。***
+
+---
+### 🐱 例2：宇宙服を着た猫のイラスト　（英語プロンプト）
+
+```text
+宇宙服を着て星空を漂っている可愛い猫のイラストを生成してください。
+正方形（1:1）の比率で、人物生成は許可せず、安全性フィルターは高リスクのみブロックでお願いします。
+保存先ファイルは space_cat.png にしてください。
+```
+
+![例2](./docs/images/space_cat_english.png)
+
+---
+### 🐲 例3：ドラゴンの高解像度画像（生成＋4倍拡大）
+
+```text
+ドラゴンのかっこいいイラストを生成し、16:9 の横長比率でお願いします。
+人物は含めず、安全性フィルターは標準。
+4 倍にアップスケーリング、プロンプトは英語でお願いします。dragon_4x.png に保存してください。
+```
+![例3](./docs/images/dragon_4x.png)
+
+---
+### 🌸 例4：桜の木の画像（base64 表示）
+
+```text
+美しい桜の木の画像を生成し、チャット内で直接表示してください（base64表示）。
+正方形で、人物は含めず、安全性フィルターは通常でお願いします。
+ファイル保存は不要です。
+```
+  ***データ量が多いなどの理由でエラーの発生する場合があります***
+
+---
+
+---
+## ⚠️ 日本語プロンプトに関する注意（Claude Code検証結果）
+
+Google Imagen API を日本語で使用する際、意図しない画像の生成や、**プロンプトの内容によっては安全性フィルターにより画像生成に失敗することがあります**。
+
+### 🔍 検証結果の概要
+
+以下のような日本語プロンプト：
+
+```json
+prompt: "宇宙服を着た白い猫、透明なヘルメット、星空を背景に浮遊、キラキラした宇宙空間"
+output_path: "<<project_folder>>\\docs\\images\\space_cat_detailed.png"
+safety_level: "BLOCK_ONLY_HIGH"
+```
+
+→ **MCPエラー `No images were generated` が発生**
+
+同じ内容を英語に翻訳：
+
+```json
+prompt: "Cute cat in white spacesuit floating in starry space, transparent helmet, fluffy fur, big eyes, surrounded by twinkling stars and galaxy, fantasy atmosphere, digital art"
+output_path: "<<project_folder>>\\docs\\images\\space_cat_english.png"
+```
+
+→ ✅ 画像生成に成功！
+
+---
+
+### 💡 回避策
+
+* 詳細なプロンプトを使う場合は **英語で記述することを推奨**
+* シンプルな日本語プロンプト（「猫の画像を生成してください」など）は通常問題なし
+* `safety_level` を緩めても効果がないケースがあります
+
+---
+
+### ✅ まとめ
+
+| 言語  | 簡単なプロンプト | 詳細なプロンプト    |
+| --- | -------- | ----------- |
+| 日本語 | ✅ 成功する   | ⚠️ 失敗する場合あり |
+| 英語  | ✅ 成功する   | ✅ 安定して成功する  |
 
 ---
 
@@ -219,7 +319,7 @@ Claude Code の設定ファイルに以下を追加してください：
 * `input_path`（必須）: 入力ファイルパス
 * `scale_factor`: 倍率（デフォルト: 2）
 * `output_path`: 保存ファイル名（省略可）
-* `return_base64`: チャット内表示
+* `return_base64`: チャット内表示 ***※クライアントによっては利用できません***
 
 ---
 
@@ -286,13 +386,22 @@ google-imagen-mcp-server --version
 
 ## 💰 料金について
 
-* Imagen 3（画像生成）: 約 `$0.020` / 画像（2025年7月時点）
-* アップスケーリング費用も別途発生します
-* 無料枠：Google Cloud 新規ユーザーは \$300 分の無料クレジットあり
+Google Imagen は Vertex AI の Generative AI モデルの一部として提供されており、**従量課金制**です。
 
-> 価格は変更される場合があります。最新情報は [公式ページ](https://cloud.google.com/vertex-ai/pricing) をご確認ください。
+- 最新の価格は以下を参照してください：  
+  [https://cloud.google.com/vertex-ai/generative-ai/pricing?hl=ja](https://cloud.google.com/vertex-ai/generative-ai/pricing?hl=ja)
 
----
+- 価格例（2025年7月時点、変更される可能性あり）:
+  - Imagen 3（画像生成）: 約 **$0.040 / 画像**
+  - アップスケーリング処理も別途課金対象となる場合があります
+
+### 無料枠について
+
+- **Google Cloud 無料トライアル**：新規アカウントに $300 クレジット（90日間）付与
+- Vertex AI 自体には常設の無料枠はありませんが、クレジット消費によって Imagen の試用が可能です
+
+> ⚠️ 実際の料金やリージョンごとの価格変動、課金単位などは必ず公式サイトでご確認ください。
+
 
 ## 🤝 コントリビューション歓迎
 
@@ -313,4 +422,5 @@ MIT License（詳細は `LICENSE` ファイルを参照）
 
 * [Model Context Protocol](https://modelcontextprotocol.io/)
 * [Google Cloud Vertex AI Imagen](https://cloud.google.com/vertex-ai/generative-ai/docs/image/overview)
+
 

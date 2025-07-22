@@ -13,6 +13,8 @@ pnpm-lock.yaml
 .claude/
 CLAUDE.md
 
+.mcp.json
+
 
 # Environment variables
 .env
