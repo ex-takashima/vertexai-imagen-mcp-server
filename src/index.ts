@@ -173,8 +173,8 @@ class GoogleImagenMCPServer {
   constructor() {
     this.server = new Server(
       {
-        name: "google-imagen-server",
-        version: "0.1.0",
+        name: "vertexai-imagen-server",
+        version: "0.1.3",
       },
       {
         capabilities: {
@@ -197,14 +197,14 @@ class GoogleImagenMCPServer {
   private handleProcessArguments() {
     // --version フラグの処理
     if (process.argv.includes('--version') || process.argv.includes('-v')) {
-      console.log('0.1.0');
+      console.log('0.1.3');
       process.exit(0);
     }
 
     // --help フラグの処理
     if (process.argv.includes('--help') || process.argv.includes('-h')) {
       console.log(`
-Google Imagen MCP Server v0.1.0
+VertexAI Imagen MCP Server v0.1.3
 
 Usage: vertexai-imagen-mcp-server [options]
 
@@ -870,9 +870,9 @@ It should be run by an MCP client like Claude Desktop.
     await this.server.connect(transport);
     
     if (process.env.DEBUG) {
-      console.error("Google Imagen MCP server running on stdio (DEBUG mode)");
+      console.error("VertexAI Imagen MCP server running on stdio (DEBUG mode)");
     } else {
-      console.error("Google Imagen MCP server running on stdio");
+      console.error("VertexAI Imagen MCP server running on stdio");
     }
   }
 }

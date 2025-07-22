@@ -192,7 +192,7 @@ Claude Code の設定ファイルに以下を追加してください：
 宇宙の画像を縦長で生成し、2倍に拡大して表示してください
 ```
 ## 🧪 使用例（Claude Code 指示文）※Imagen 3を利用
-以下は、Claude Code で Google Imagen MCP サーバーを使用して画像を生成・保存するための自然言語プロンプトの例です。  
+以下は、Claude Code で VertexAI Imagen MCP サーバーを使用して画像を生成・保存するための自然言語プロンプトの例です。  
 保存先は `<<PROJECT_FOLDER>>\docs\images\` を想定しています。
 
 
