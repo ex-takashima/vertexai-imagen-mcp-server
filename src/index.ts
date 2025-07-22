@@ -48,8 +48,9 @@ async function getProjectId(auth: GoogleAuth): Promise<string> {
 }
 
 // APIのURLを動的に生成する関数
-function getImagenApiUrl(projectId: string): string {
-  return `https://${GOOGLE_REGION}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${GOOGLE_REGION}/publishers/google/models/${GOOGLE_IMAGEN_MODEL}:predict`;
+function getImagenApiUrl(projectId: string, model?: string): string {
+  const selectedModel = model || GOOGLE_IMAGEN_MODEL;
+  return `https://${GOOGLE_REGION}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${GOOGLE_REGION}/publishers/google/models/${selectedModel}:predict`;
 }
 
 function getUpscaleApiUrl(projectId: string): string {
@@ -68,6 +69,7 @@ interface GoogleImagenRequest {
       threshold: string;
     }>;
     personGeneration?: string;
+    language?: string;
   };
 }
 
@@ -102,6 +104,8 @@ interface GenerateImageArgs {
   return_base64?: boolean;
   safety_level?: "BLOCK_NONE" | "BLOCK_ONLY_HIGH" | "BLOCK_MEDIUM_AND_ABOVE" | "BLOCK_LOW_AND_ABOVE";
   person_generation?: "DONT_ALLOW" | "ALLOW_ADULT" | "ALLOW_ALL";
+  language?: "auto" | "en" | "zh" | "zh-TW" | "hi" | "ja" | "ko" | "pt" | "es";
+  model?: "imagen-3.0-generate-002" | "imagen-3.0-fast-generate-001" | "imagen-4.0-generate-preview-06-06" | "imagen-4.0-fast-generate-preview-06-06" | "imagen-4.0-ultra-generate-preview-06-06";
 }
 
 interface UpscaleImageArgs {
@@ -119,6 +123,8 @@ interface GenerateAndUpscaleImageArgs {
   return_base64?: boolean;
   safety_level?: "BLOCK_NONE" | "BLOCK_ONLY_HIGH" | "BLOCK_MEDIUM_AND_ABOVE" | "BLOCK_LOW_AND_ABOVE";
   person_generation?: "DONT_ALLOW" | "ALLOW_ADULT" | "ALLOW_ALL";
+  language?: "auto" | "en" | "zh" | "zh-TW" | "hi" | "ja" | "ko" | "pt" | "es";
+  model?: "imagen-3.0-generate-002" | "imagen-3.0-fast-generate-001" | "imagen-4.0-generate-preview-06-06" | "imagen-4.0-fast-generate-preview-06-06" | "imagen-4.0-ultra-generate-preview-06-06";
 }
 
 interface ListGeneratedImagesArgs {
@@ -251,6 +257,16 @@ It should be run by an MCP client like Claude Desktop.
                   type: "string",
                   enum: ["DONT_ALLOW", "ALLOW_ADULT", "ALLOW_ALL"],
                   description: "Person generation policy (default: DONT_ALLOW)",
+                },
+                language: {
+                  type: "string",
+                  enum: ["auto", "en", "zh", "zh-TW", "hi", "ja", "ko", "pt", "es"],
+                  description: "Language for prompt processing (default: auto)",
+                },
+                model: {
+                  type: "string",
+                  enum: ["imagen-3.0-generate-002", "imagen-3.0-fast-generate-001", "imagen-4.0-generate-preview-06-06", "imagen-4.0-fast-generate-preview-06-06", "imagen-4.0-ultra-generate-preview-06-06"],
+                  description: "Imagen model to use (default: imagen-3.0-generate-002)",
                 }
               },
               required: ["prompt"],
@@ -320,6 +336,16 @@ It should be run by an MCP client like Claude Desktop.
                   type: "string",
                   enum: ["DONT_ALLOW", "ALLOW_ADULT", "ALLOW_ALL"],
                   description: "Person generation policy (default: DONT_ALLOW)",
+                },
+                language: {
+                  type: "string",
+                  enum: ["auto", "en", "zh", "zh-TW", "hi", "ja", "ko", "pt", "es"],
+                  description: "Language for prompt processing (default: auto)",
+                },
+                model: {
+                  type: "string",
+                  enum: ["imagen-3.0-generate-002", "imagen-3.0-fast-generate-001", "imagen-4.0-generate-preview-06-06", "imagen-4.0-fast-generate-preview-06-06", "imagen-4.0-ultra-generate-preview-06-06"],
+                  description: "Imagen model to use (default: imagen-3.0-generate-002)",
                 }
               },
               required: ["prompt"],
@@ -380,7 +406,9 @@ It should be run by an MCP client like Claude Desktop.
       aspect_ratio = "1:1",
       return_base64 = false,
       safety_level = "BLOCK_MEDIUM_AND_ABOVE",
-      person_generation = "DONT_ALLOW"
+      person_generation = "DONT_ALLOW",
+      language = "auto",
+      model = "imagen-3.0-generate-002"
     } = args;
 
     if (!prompt || typeof prompt !== 'string') {
@@ -393,6 +421,7 @@ It should be run by an MCP client like Claude Desktop.
       console.error(`[DEBUG] Output path: ${output_path}`);
       console.error(`[DEBUG] Aspect ratio: ${aspect_ratio}`);
       console.error(`[DEBUG] Safety level: ${safety_level}`);
+      console.error(`[DEBUG] Model: ${model}`);
     }
 
     const requestBody: GoogleImagenRequest = {
@@ -422,7 +451,8 @@ It should be run by an MCP client like Claude Desktop.
             threshold: safety_level
           }
         ],
-        personGeneration: person_generation
+        personGeneration: person_generation,
+        language: language
       }
     };
 
@@ -437,7 +467,7 @@ It should be run by an MCP client like Claude Desktop.
 
       // プロジェクトIDを取得してAPIのURLを構築
       const projectId = await getProjectId(this.auth);
-      const apiUrl = getImagenApiUrl(projectId);
+      const apiUrl = getImagenApiUrl(projectId, model);
       
       const response = await axios.post<GoogleImagenResponse>(
         apiUrl,
@@ -468,7 +498,7 @@ It should be run by an MCP client like Claude Desktop.
           imageBuffer, 
           generatedImage.mimeType,
           undefined,
-          `Image generated successfully!\n\nPrompt: ${prompt}\nAspect ratio: ${aspect_ratio}`
+          `Image generated successfully!\n\nPrompt: ${prompt}\nAspect ratio: ${aspect_ratio}\nModel: ${model}`
         );
       } else {
         // ファイル保存モード
@@ -483,7 +513,7 @@ It should be run by an MCP client like Claude Desktop.
           content: [
             {
               type: "text",
-              text: `Image generated successfully!\n\nPrompt: ${prompt}\nAspect ratio: ${aspect_ratio}\nSaved to: ${fullPath}\nFile size: ${imageBuffer.length} bytes\nMIME type: ${generatedImage.mimeType}`
+              text: `Image generated successfully!\n\nPrompt: ${prompt}\nAspect ratio: ${aspect_ratio}\nModel: ${model}\nSaved to: ${fullPath}\nFile size: ${imageBuffer.length} bytes\nMIME type: ${generatedImage.mimeType}`
             }
           ],
         };
@@ -658,7 +688,9 @@ It should be run by an MCP client like Claude Desktop.
       scale_factor = "2",
       return_base64 = false,
       safety_level = "BLOCK_MEDIUM_AND_ABOVE",
-      person_generation = "DONT_ALLOW"
+      person_generation = "DONT_ALLOW",
+      language = "auto",
+      model = "imagen-3.0-generate-002"
     } = args;
 
     if (!prompt || typeof prompt !== 'string') {
@@ -669,6 +701,7 @@ It should be run by an MCP client like Claude Desktop.
     if (process.env.DEBUG) {
       console.error(`[DEBUG] Generating and upscaling image with prompt: ${prompt}`);
       console.error(`[DEBUG] Aspect ratio: ${aspect_ratio}, Scale factor: ${scale_factor}`);
+      console.error(`[DEBUG] Model: ${model}`);
       console.error(`[DEBUG] Final output path: ${output_path}`);
     }
 
@@ -681,7 +714,9 @@ It should be run by an MCP client like Claude Desktop.
         output_path: tempImagePath,
         aspect_ratio,
         safety_level,
-        person_generation
+        person_generation,
+        language,
+        model
       };
 
       const generateResult = await this.generateImage(generateArgs);
@@ -726,7 +761,7 @@ It should be run by an MCP client like Claude Desktop.
           content: [
             {
               type: "text",
-              text: `Image generated and upscaled successfully!\n\nPrompt: ${prompt}\nAspect ratio: ${aspect_ratio}\nScale factor: ${scale_factor}\n\nProcess completed in 2 steps:\n1. Generated original image\n2. Upscaled to ${scale_factor}x resolution\n\nFile size: ${originalContent.text?.match(/File size: (\d+) bytes/)?.[1] || 'unknown'} bytes`
+              text: `Image generated and upscaled successfully!\n\nPrompt: ${prompt}\nAspect ratio: ${aspect_ratio}\nModel: ${model}\nScale factor: ${scale_factor}\n\nProcess completed in 2 steps:\n1. Generated original image\n2. Upscaled to ${scale_factor}x resolution\n\nFile size: ${originalContent.text?.match(/File size: (\d+) bytes/)?.[1] || 'unknown'} bytes`
             },
             imageContent
           ],
@@ -737,7 +772,7 @@ It should be run by an MCP client like Claude Desktop.
           content: [
             {
               type: "text",
-              text: `Image generated and upscaled successfully!\n\nPrompt: ${prompt}\nAspect ratio: ${aspect_ratio}\nScale factor: ${scale_factor}\nFinal output: ${path.resolve(output_path)}\n\nProcess completed in 2 steps:\n1. Generated original image\n2. Upscaled to ${scale_factor}x resolution`
+              text: `Image generated and upscaled successfully!\n\nPrompt: ${prompt}\nAspect ratio: ${aspect_ratio}\nModel: ${model}\nScale factor: ${scale_factor}\nFinal output: ${path.resolve(output_path)}\n\nProcess completed in 2 steps:\n1. Generated original image\n2. Upscaled to ${scale_factor}x resolution`
             }
           ],
         };

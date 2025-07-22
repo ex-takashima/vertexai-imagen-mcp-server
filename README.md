@@ -1,6 +1,6 @@
-# Google Imagen MCP Server
+# Vertex AI Imagen MCP Server
 
-Google Imagen API を使用して画像を生成できる MCP（Model Context Protocol）対応サーバーです。Claude Desktop などの MCP クライアントと連携することで、チャット内から自然言語で画像生成が行えます。
+Vertex AI の Imagen API を使用して画像を生成できる MCP（Model Context Protocol）対応サーバーです。Claude Desktop などの MCP クライアントと連携することで、チャット内から自然言語で画像生成が行えます。
 
 ---
 
@@ -194,7 +194,7 @@ Claude Code の設定ファイルに以下を追加してください：
 ```
 宇宙の画像を縦長で生成し、2倍に拡大して表示してください
 ```
-## 🧪 使用例（Claude Code 指示文）
+## 🧪 使用例（Claude Code 指示文）※Imagen 3を利用
 以下は、Claude Code で Google Imagen MCP サーバーを使用して画像を生成・保存するための自然言語プロンプトの例です。  
 保存先は `<<PROJECT_FOLDER>>\docs\images\` を想定しています。
 
@@ -212,23 +212,12 @@ Claude Code の設定ファイルに以下を追加してください：
 ### 🐱 例2：宇宙服を着た猫のイラスト
 
 ```text
-宇宙服を着て星空を漂っている可愛い猫のイラストを生成してください。
+宇宙服を着て星空を漂っている可愛い猫のイラストを生成してください。日本語指定です。
 正方形（1:1）の比率で、人物生成は許可せず、安全性フィルターは高リスクのみブロックでお願いします。
 保存先ファイルは space_cat.png にしてください。
 ```
 ![例2](./docs/images/space_cat.png)
-***注意:意図しない画像の生成や、プロンプトの内容によっては安全性フィルターにより画像生成に失敗することがあります。***
-
----
-### 🐱 例2：宇宙服を着た猫のイラスト　（英語プロンプト）
-
-```text
-宇宙服を着て星空を漂っている可愛い猫のイラストを生成してください。
-正方形（1:1）の比率で、人物生成は許可せず、安全性フィルターは高リスクのみブロックでお願いします。
-保存先ファイルは space_cat.png にしてください。
-```
-
-![例2](./docs/images/space_cat_english.png)
+***注意:意図しない画像の生成や、プロンプトの内容によっては安全性フィルターにより画像生成に失敗することがあります。その際は、英語プロンプトでの生成を依頼するか、languageオプションを指定して試してください。***
 
 ---
 ### 🐲 例3：ドラゴンの高解像度画像（生成＋4倍拡大）
@@ -241,59 +230,18 @@ Claude Code の設定ファイルに以下を追加してください：
 ![例3](./docs/images/dragon_4x.png)
 
 ---
-### 🌸 例4：桜の木の画像（base64 表示）
+### 🧒 例4：人物ありのポートレート（成人のみ許可）
 
 ```text
-美しい桜の木の画像を生成し、チャット内で直接表示してください（base64表示）。
-正方形で、人物は含めず、安全性フィルターは通常でお願いします。
-ファイル保存は不要です。
-```
-  ***データ量が多いなどの理由でエラーの発生する場合があります***
-
----
-
----
-## ⚠️ 日本語プロンプトに関する注意（Claude Code検証結果）
-
-Google Imagen API を日本語で使用する際、意図しない画像の生成や、**プロンプトの内容によっては安全性フィルターにより画像生成に失敗することがあります**。
-
-### 🔍 検証結果の概要
-
-以下のような日本語プロンプト：
-
-```json
-prompt: "宇宙服を着た白い猫、透明なヘルメット、星空を背景に浮遊、キラキラした宇宙空間"
-output_path: "<<project_folder>>\\docs\\images\\space_cat_detailed.png"
-safety_level: "BLOCK_ONLY_HIGH"
+人物のポートレート画像を縦長（3:4）で生成してください。
+成人の人物生成を許可し、安全性フィルターは高リスクのみブロックでお願いします。プロンプトの言語は日本語です。
+保存先は portrait_adult.png にしてください。
 ```
 
-→ **MCPエラー `No images were generated` が発生**
-
-同じ内容を英語に翻訳：
-
-```json
-prompt: "Cute cat in white spacesuit floating in starry space, transparent helmet, fluffy fur, big eyes, surrounded by twinkling stars and galaxy, fantasy atmosphere, digital art"
-output_path: "<<project_folder>>\\docs\\images\\space_cat_english.png"
-```
-
-→ ✅ 画像生成に成功！
+![例4](./docs/images/portrait_adult.png)
 
 ---
 
-### 💡 回避策
-
-* 詳細なプロンプトを使う場合は **英語で記述することを推奨**
-* シンプルな日本語プロンプト（「猫の画像を生成してください」など）は通常問題なし
-* `safety_level` を緩めても効果がないケースがあります
-
----
-
-### ✅ まとめ
-
-| 言語  | 簡単なプロンプト | 詳細なプロンプト    |
-| --- | -------- | ----------- |
-| 日本語 | ✅ 成功する   | ⚠️ 失敗する場合あり |
-| 英語  | ✅ 成功する   | ✅ 安定して成功する  |
 
 ---
 
@@ -306,9 +254,10 @@ output_path: "<<project_folder>>\\docs\\images\\space_cat_english.png"
 * `prompt`（必須）: テキストプロンプト
 * `output_path`: 保存ファイル名（省略可）
 * `aspect_ratio`: 画像比率（例: 1:1, 16:9）
-* `return_base64`: チャット内表示モード
 * `safety_level`: 安全性フィルター（BLOCK\_NONE〜BLOCK\_LOW\_AND\_ABOVE）
 * `person_generation`: 人物生成ポリシー（DONT\_ALLOW, ALLOW\_ADULT, ALLOW\_ALL）
+* `language`: プロンプト処理言語（auto, en, ja, ko など、デフォルト: auto）
+* `model`: 使用するImagenモデル（デフォルト: imagen-3.0-generate-002）
 
 ---
 
@@ -319,7 +268,6 @@ output_path: "<<project_folder>>\\docs\\images\\space_cat_english.png"
 * `input_path`（必須）: 入力ファイルパス
 * `scale_factor`: 倍率（デフォルト: 2）
 * `output_path`: 保存ファイル名（省略可）
-* `return_base64`: チャット内表示 ***※クライアントによっては利用できません***
 
 ---
 
@@ -328,6 +276,15 @@ output_path: "<<project_folder>>\\docs\\images\\space_cat_english.png"
 画像生成とアップスケーリングを一括で行います。
 `generate_image` と `upscale_image` の統合処理です。
 
+* `prompt`（必須）: テキストプロンプト
+* `output_path`: 保存ファイル名（省略可）
+* `aspect_ratio`: 画像比率（例: 1:1, 16:9）
+* `scale_factor`: 倍率（デフォルト: 2）
+* `safety_level`: 安全性フィルター（BLOCK\_NONE〜BLOCK\_LOW\_AND\_ABOVE）
+* `person_generation`: 人物生成ポリシー（DONT\_ALLOW, ALLOW\_ADULT, ALLOW\_ALL）
+* `language`: プロンプト処理言語（auto, en, ja, ko など、デフォルト: auto）
+* `model`: 使用するImagenモデル（デフォルト: imagen-3.0-generate-002）
+
 ---
 
 ### 4. `list_generated_images`
@@ -335,6 +292,40 @@ output_path: "<<project_folder>>\\docs\\images\\space_cat_english.png"
 ディレクトリ内の画像ファイルを一覧表示します。
 
 * `directory`: 検索対象フォルダ（省略時はカレントディレクトリ）
+
+---
+
+### 利用可能なImagenモデル
+
+| モデル名 | 特徴 | 用途 |
+|----------|------|------|
+| `imagen-3.0-generate-002` | Imagen 3（標準）| バランスの取れた品質と速度（**デフォルト**） |
+| `imagen-3.0-fast-generate-001` | Imagen 3 Fast | 高速生成、品質は標準より劣る |
+| `imagen-4.0-generate-preview-06-06` | Imagen 4 | より高品質な画像生成 |
+| `imagen-4.0-fast-generate-preview-06-06` | Imagen 4 Fast | Imagen 4の高速版 |
+| `imagen-4.0-ultra-generate-preview-06-06` | Imagen 4 Ultra | 最高品質（処理時間が長い） |
+
+**使用例:**
+```text
+プロンプト: "美しい山の風景"
+モデル: imagen-4.0-ultra-generate-preview-06-06
+```
+
+---
+
+### プロンプトの言語について
+
+省略可。テキスト プロンプト言語に対応する言語コード。サポートされる値は次のとおりです。
+
+- auto: 自動検出。Imagen がサポートされている言語を検出すると、プロンプトとオプションの否定的なプロンプトが英語に翻訳されます。検出された言語がサポートされていない場合、Imagen は入力テキストをそのまま使用するため、予期しない出力になる可能性があります。エラーコードは返されません。
+- en: 英語
+- ja: 日本語
+- ko: 韓国語
+- zh: 中国語（簡体）
+- zh-tw: 中国語（繁体）
+- hi: ヒンディー語
+- pt: ポルトガル語
+- es: スペイン語
 
 ---
 
