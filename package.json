@@ -1,5 +1,5 @@
 {
-  "name": "vertexai-imagen-mcp-server",
+  "name": "@dondonudonjp/vertexai-imagen-mcp-server",
   "version": "0.1.0",
   "description": "MCP Server for Vertex AI Imagen image generation",
   "type": "module",
@@ -11,46 +11,46 @@
     "build": "npx tsc",
     "dev": "npx tsx src/index.ts",
     "start": "node build/index.js",
-    "prepublishOnly": "npm run build",
-    "postinstall": "npm run build || echo 'Build failed, but continuing...'"
+    "prepublishOnly": "npm run build"
   },
   "files": [
     "build/",
-    "src/",
-    "README.md",
-    "package.json",
-    "tsconfig.json"
+    "README.md"
   ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^0.6.0",
     "axios": "^1.6.0",
     "google-auth-library": "^10.1.0",
-    "googleapis": "^153.0.0",
-    "typescript": "^5.0.0"
+    "googleapis": "^153.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
-    "tsx": "^4.0.0"
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
   },
   "engines": {
     "node": ">=18"
   },
   "keywords": [
     "mcp",
-    "google-imagen",
-    "image-generation",
+    "model-context-protocol",
+    "vertex-ai",
+    "imagen",
+    "google-cloud",
     "ai",
-    "claude-desktop",
-    "model-context-protocol"
+    "image-generation",
+    "text-to-image",
+    "claude-code",
+    "claude-desktop"
   ],
   "author": "don",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ex-takashima/google-imagen-mcp-server.git"
+    "url": "https://github.com/ex-takashima/vertexai-imagen-mcp-server.git"
   },
   "bugs": {
-    "url": "https://github.com/ex-takashima/google-imagen-mcp-server/issues"
+    "url": "https://github.com/ex-takashima/vertexai-imagen-mcp-server/issues"
   },
-  "homepage": "https://github.com/ex-takashima/google-imagen-mcp-server#readme"
+  "homepage": "https://github.com/ex-takashima/vertexai-imagen-mcp-server#readme"
 }
