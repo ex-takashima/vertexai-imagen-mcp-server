@@ -45,11 +45,9 @@ Vertex AI の Imagen API を使用して画像を生成できる MCP（Model Con
 ### 2. プロジェクトのセットアップ
 
 ```bash
-git clone https://github.com/ex-takashima/vertexai-imagen-mcp-server.git
-cd vertexai-imagen-mcp-server
+npm install -g @dondonudonjp/vertexai-imagen-mcp-server
 
-npm install      # 依存関係のインストール
-npm run build    # TypeScript のコンパイル
+# パッケージがインストールされ、使用準備完了
 ````
 
 ---
@@ -72,18 +70,18 @@ chmod 600 ./google-service-account.json
 
 ### 4. インストール方法
 
-#### A. 開発リンク（npm link）
+#### A. NPM レジストリからインストール（推奨）
+
+```bash
+npm install -g @dondonudonjp/vertexai-imagen-mcp-server
+vertexai-imagen-mcp-server --version
+```
+
+#### B. 開発リンク（npm link）
 
 ```bash
 npm link
 vertexai-imagen-mcp-server --version
-```
-
-#### B. ローカルパッケージとしてインストール（推奨）
-
-```bash
-npm pack
-npm install -g ./vertexai-imagen-mcp-server-*.tgz
 ```
 
 #### C. Claude Desktop に直接パスを指定
@@ -144,7 +142,7 @@ Claude Code の設定ファイルに以下を追加してください：
   "mcpServers": {
     "google-imagen": {
       "command": "cmd",
-      "args": ["/c", "npx", "-y", "vertexai-imagen-mcp-server"],
+      "args": ["/c", "npx", "-y", "@dondonudonjp/vertexai-imagen-mcp-server"],
       "env": {
         "GOOGLE_APPLICATION_CREDENTIALS": "C:\\path\\to\\your\\google-service-account.json"
       }
@@ -159,7 +157,7 @@ Claude Code の設定ファイルに以下を追加してください：
   "mcpServers": {
     "google-imagen": {
       "command": "npx",
-      "args": ["-y", "vertexai-imagen-mcp-server"],
+      "args": ["-y", "@dondonudonjp/vertexai-imagen-mcp-server"],
       "env": {
         "GOOGLE_APPLICATION_CREDENTIALS": "/path/to/your/google-service-account.json"
       }
