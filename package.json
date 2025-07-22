@@ -43,14 +43,14 @@
     "claude-desktop",
     "model-context-protocol"
   ],
-  "author": "Your Name",
+  "author": "don",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/google-imagen-mcp-server.git"
+    "url": "https://github.com/ex-takashima/google-imagen-mcp-server.git"
   },
   "bugs": {
-    "url": "https://github.com/yourusername/google-imagen-mcp-server/issues"
+    "url": "https://github.com/ex-takashima/google-imagen-mcp-server/issues"
   },
-  "homepage": "https://github.com/yourusername/google-imagen-mcp-server#readme"
+  "homepage": "https://github.com/ex-takashima/google-imagen-mcp-server#readme"
 }
