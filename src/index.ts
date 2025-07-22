@@ -206,7 +206,7 @@ class GoogleImagenMCPServer {
       console.log(`
 Google Imagen MCP Server v0.1.0
 
-Usage: google-imagen-mcp-server [options]
+Usage: vertexai-imagen-mcp-server [options]
 
 Options:
   -v, --version    Show version number

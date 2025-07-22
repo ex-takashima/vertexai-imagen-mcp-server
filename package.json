@@ -1,11 +1,11 @@
 {
-  "name": "google-imagen-mcp-server",
+  "name": "vertexai-imagen-mcp-server",
   "version": "0.1.0",
-  "description": "MCP Server for Google Imagen image generation",
+  "description": "MCP Server for Vertex AI Imagen image generation",
   "type": "module",
   "main": "build/index.js",
   "bin": {
-    "google-imagen-mcp-server": "build/index.js"
+    "vertexai-imagen-mcp-server": "build/index.js"
   },
   "scripts": {
     "build": "npx tsc",

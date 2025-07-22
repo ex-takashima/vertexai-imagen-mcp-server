@@ -45,8 +45,8 @@ Vertex AI の Imagen API を使用して画像を生成できる MCP（Model Con
 ### 2. プロジェクトのセットアップ
 
 ```bash
-git clone https://github.com/ex-takashima/google-imagen-mcp-server.git
-cd google-imagen-mcp-server
+git clone https://github.com/ex-takashima/vertexai-imagen-mcp-server.git
+cd vertexai-imagen-mcp-server
 
 npm install      # 依存関係のインストール
 npm run build    # TypeScript のコンパイル
@@ -76,14 +76,14 @@ chmod 600 ./google-service-account.json
 
 ```bash
 npm link
-google-imagen-mcp-server --version
+vertexai-imagen-mcp-server --version
 ```
 
 #### B. ローカルパッケージとしてインストール（推奨）
 
 ```bash
 npm pack
-npm install -g ./google-imagen-mcp-server-*.tgz
+npm install -g ./vertexai-imagen-mcp-server-*.tgz
 ```
 
 #### C. Claude Desktop に直接パスを指定
@@ -93,7 +93,7 @@ npm install -g ./google-imagen-mcp-server-*.tgz
   "mcpServers": {
     "google-imagen": {
       "command": "node",
-      "args": ["C:\\projects\\google-imagen-mcp-server\\build\\index.js"],
+      "args": ["C:\\projects\\vertexai-imagen-mcp-server\\build\\index.js"],
       "env": {
         "GOOGLE_APPLICATION_CREDENTIALS": "C:\\path\\to\\your\\key.json"
       }
@@ -112,7 +112,7 @@ npm install -g ./google-imagen-mcp-server-*.tgz
 {
   "mcpServers": {
     "google-imagen": {
-      "command": "google-imagen-mcp-server",
+      "command": "vertexai-imagen-mcp-server",
       "env": {
         "GOOGLE_APPLICATION_CREDENTIALS": "/path/to/google-service-account.json"
       }
@@ -144,7 +144,7 @@ Claude Code の設定ファイルに以下を追加してください：
   "mcpServers": {
     "google-imagen": {
       "command": "cmd",
-      "args": ["/c", "npx", "-y", "google-imagen-mcp-server"],
+      "args": ["/c", "npx", "-y", "vertexai-imagen-mcp-server"],
       "env": {
         "GOOGLE_APPLICATION_CREDENTIALS": "C:\\path\\to\\your\\google-service-account.json"
       }
@@ -159,7 +159,7 @@ Claude Code の設定ファイルに以下を追加してください：
   "mcpServers": {
     "google-imagen": {
       "command": "npx",
-      "args": ["-y", "google-imagen-mcp-server"],
+      "args": ["-y", "vertexai-imagen-mcp-server"],
       "env": {
         "GOOGLE_APPLICATION_CREDENTIALS": "/path/to/your/google-service-account.json"
       }
@@ -352,8 +352,8 @@ DEBUG=1 npm run dev # デバッグモード（詳細ログあり）
 ## 📖 コマンドラインと環境変数
 
 ```bash
-google-imagen-mcp-server --help
-google-imagen-mcp-server --version
+vertexai-imagen-mcp-server --help
+vertexai-imagen-mcp-server --version
 ```
 
 | 変数名                              | 必須 | 説明                          |
