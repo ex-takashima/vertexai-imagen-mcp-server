@@ -1,12 +1,20 @@
 # Vertex AI Imagen MCP Server
 
-Vertex AI の Imagen API を使用して画像を生成できる MCP（Model Context Protocol）対応サーバーです。Claude Desktop などの MCP クライアントと連携することで、チャット内から自然言語で画像生成が行えます。
+[![npm version](https://badge.fury.io/js/@dondonudonjp%2Fvertexai-imagen-mcp-server.svg)](https://badge.fury.io/js/@dondonudonjp%2Fvertexai-imagen-mcp-server)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+**🆕 Latest Update**: Imagen 3.0対応、高度な画像編集機能追加（自動マスク生成、セマンティック分割、背景置換）
+
+Vertex AI の Imagen API を使用して画像を生成・編集できる MCP（Model Context Protocol）対応サーバーです。Claude Desktop などの MCP クライアントと連携することで、チャット内から自然言語で高度な画像操作が行えます。
 
 ---
 
 ## 🌟 主な機能
 
 - 🎨 **画像生成**：テキストから高品質な画像を生成  
+- ✂️ **高度な画像編集**：AIマスク生成、セマンティック編集、背景置換対応  
+- 🎭 **4つのマスクモード**：手動マスク、背景自動検出、前景自動検出、セマンティック分割  
+- 🔄 **多様な編集モード**：インペイント除去、インペイント挿入、背景置換  
 - 📐 **アスペクト比の指定**：1:1, 3:4, 4:3, 9:16, 16:9 に対応  
 - 🔍 **アップスケーリング**：画像を 2 倍または 4 倍に高品質拡大  
 - ⚡ **統合処理**：生成と拡大を一括実行  
@@ -191,6 +199,23 @@ Claude Code の設定ファイルに以下を追加してください：
 ```
 宇宙の画像を縦長で生成し、2倍に拡大して表示してください
 ```
+
+### 画像編集（NEW！）
+
+#### 背景を自動変更
+```
+この人物写真の背景を宇宙空間に変えてください
+```
+
+#### 不要なオブジェクトを除去
+```
+この写真から人物を除去してください
+```
+
+#### セマンティック編集
+```
+この画像の人物部分だけを別の服装に変更してください
+```
 ## 🧪 使用例（Claude Code 指示文）※Imagen 3を利用
 以下は、Claude Code で VertexAI Imagen MCP サーバーを使用して画像を生成・保存するための自然言語プロンプトの例です。  
 保存先は `<<PROJECT_FOLDER>>\docs\images\` を想定しています。
@@ -239,6 +264,58 @@ Claude Code の設定ファイルに以下を追加してください：
 
 ---
 
+### 🖼️ 例5：背景自動置換（人物写真 → 宇宙背景）
+
+```text
+この人物写真の背景を美しい宇宙空間に変更してください。
+星雲と無数の星が輝く深宇宙をイメージしてください。
+mask_mode は background、edit_mode は bgswap でお願いします。
+保存先は space_background.png にしてください。
+```
+
+![例5](./docs/images/space_background.png)
+
+---
+
+### 🧹 例6：オブジェクト除去（インペイント除去）
+
+```text
+この風景写真から不要なオブジェクト（人物や看板など）を自然に除去してください。
+前景を自動検出してマスクを作成し、inpaint_removal モードで処理してください。
+base_steps は 15 で、保存先は clean_landscape.png にしてください。
+```
+
+![例6](./docs/images/clean_landscape.png)
+
+---
+
+### 👗 例7：セマンティック編集（服装変更）
+
+```text
+この人物の服装を変更してください。人物部分のみを対象に、
+カジュアルな服装からフォーマルなビジネススーツに変更してください。
+mask_mode: semantic、mask_classes: [175, 176]、edit_mode: inpaint_insertion
+保存先は formal_outfit.png にしてください。
+```
+
+![例7](./docs/images/formal_outfit.png)
+
+---
+
+### 🏠 例8：手動マスクでの部分編集
+
+```text
+この部屋の写真で、窓の外の景色だけを変更したいと思います。
+提供されたマスク画像（window_mask.png）を使用して、
+窓の外を美しい桜並木の景色に変更してください。
+mask_mode: user_provided、mask_image_path: window_mask.png
+保存先は sakura_view.png にしてください。
+```
+
+![例8](./docs/images/sakura_view.png)
+
+---
+
 
 ---
 
@@ -258,7 +335,78 @@ Claude Code の設定ファイルに以下を追加してください：
 
 ---
 
-### 2. `upscale_image`
+### 2. `edit_image` - 高度な画像編集
+
+**Imagen 3.0対応**の高度な画像編集機能。AIによる自動マスク生成、セマンティック分割、多様な編集モードに対応します。
+
+#### 基本パラメータ
+* `prompt`（必須）: 編集内容の説明
+* `reference_image_base64` / `reference_image_path`: 元画像（どちらか必須）
+* `output_path`: 保存ファイル名（省略可、デフォルト: `edited_image.png`）
+* `return_base64`: Base64で返却する場合は `true`
+
+#### マスク指定方法（4つの選択肢）
+
+##### 🔹 手動マスク（従来の方法）
+```text
+mask_mode: "user_provided"
+mask_image_base64 / mask_image_path: 白=編集対象、黒=保持領域
+```
+
+##### 🔹 背景自動マスク
+```text
+mask_mode: "background"  # 背景を自動検出してマスク生成
+```
+
+##### 🔹 前景自動マスク  
+```text
+mask_mode: "foreground"  # 前景（主要被写体）を自動検出
+```
+
+##### 🔹 セマンティックマスク
+```text
+mask_mode: "semantic"
+mask_classes: [175, 176]  # 人物関連のクラスID（必須）
+```
+
+#### 編集モード
+* `edit_mode`: 編集タイプ
+  - `"inpaint_insertion"`: コンテンツの追加・修正（**デフォルト**）
+  - `"inpaint_removal"`: コンテンツの除去
+  - `"bgswap"`: 背景置換
+
+#### 高度なパラメータ
+* `mask_dilation`: マスク境界の拡張量（0.01-0.1、デフォルト: 0.01）
+* `base_steps`: サンプリングステップ数（1-75、除去は12-20、挿入は最大75推奨）
+* `guidance_scale`: プロンプトの強さ（0〜30）
+* `negative_prompt`: 回避したい要素の指示
+* `mask_classes`: セマンティックマスク用クラスID配列
+* `model`: 使用する Imagen 編集モデル（デフォルト: `imagen-3.0-capability-001`）
+
+#### 📋 編集パラメータ詳細リファレンス
+
+| パラメータ | 型 | デフォルト | 説明 | 使用例 |
+|-----------|---|----------|------|-------|
+| `mask_mode` | string | `user_provided` | マスク生成方法 | `"background"`, `"foreground"`, `"semantic"` |
+| `edit_mode` | string | `inpaint_insertion` | 編集操作タイプ | `"inpaint_removal"`, `"bgswap"` |
+| `mask_classes` | number[] | - | セマンティッククラスID | `[175, 176]` (人物関連) |
+| `mask_dilation` | number | `0.01` | マスク境界拡張率 | `0.02` (画像幅の2%) |
+| `base_steps` | number | - | サンプリングステップ数 | `15` (除去), `25` (挿入) |
+| `guidance_scale` | number | - | プロンプト強度 | `10-20` (標準), `5-9` (弱), `21+` (強) |
+| `negative_prompt` | string | - | 回避要素 | `"blurry, low quality, distorted"` |
+
+#### 🎯 推奨設定組み合わせ
+
+| 用途 | mask_mode | edit_mode | base_steps | mask_dilation |
+|------|----------|-----------|------------|---------------|
+| 背景変更 | `background` | `bgswap` | 20-25 | 0.01-0.02 |
+| オブジェクト除去 | `foreground` | `inpaint_removal` | 12-18 | 0.01 |
+| 人物服装変更 | `semantic` | `inpaint_insertion` | 25-30 | 0.02 |
+| 精密手動編集 | `user_provided` | `inpaint_insertion` | 20-35 | 0.005-0.01 |
+
+---
+
+### 3. `upscale_image`
 
 画像を 2 倍 / 4 倍にアップスケールします。
 
@@ -268,7 +416,7 @@ Claude Code の設定ファイルに以下を追加してください：
 
 ---
 
-### 3. `generate_and_upscale_image`
+### 4. `generate_and_upscale_image`
 
 画像生成とアップスケーリングを一括で行います。
 `generate_image` と `upscale_image` の統合処理です。
@@ -284,7 +432,7 @@ Claude Code の設定ファイルに以下を追加してください：
 
 ---
 
-### 4. `list_generated_images`
+### 5. `list_generated_images`
 
 ディレクトリ内の画像ファイルを一覧表示します。
 
@@ -307,6 +455,31 @@ Claude Code の設定ファイルに以下を追加してください：
 プロンプト: "美しい山の風景"
 モデル: imagen-4.0-ultra-generate-preview-06-06
 ```
+
+---
+
+### 編集・アップスケール用モデル
+
+| モデル名 | 用途 | 新機能対応 |
+|----------|------|-----------|
+| `imagen-3.0-capability-001` | **Imagen 3 系の編集・マスク・インペイント対応（デフォルト）** | ✅ 自動マスク生成、セマンティック分割、高度編集モード |
+| `imagegeneration@006` | Imagen 2.5 系最終プレビュー（互換目的） | ⚠️ 基本編集のみ（新機能は非対応） |
+| `imagegeneration@005` | Imagen 2.5 系旧バージョン（互換目的） | ❌ 非推奨 |
+| `imagegeneration@002` | Imagen 2 系旧バージョン（互換目的） | ❌ 非推奨 |
+
+### 🏷️ セマンティックマスク対応クラスID（一部抜粋）
+
+画像編集で`mask_mode: "semantic"`を使用する際の代表的なクラスIDです：
+
+| カテゴリ | クラスID | 説明 | 使用例 |
+|----------|----------|------|-------|
+| **人物** | `[175, 176]` | 人、人物全体 | 服装変更、人物除去 |
+| **動物** | `[17, 18, 19, 20]` | 犬、猫、鳥、馬など | ペット関連編集 |
+| **乗り物** | `[3, 6, 8]` | 車、バス、トラック | 車両除去・変更 |
+| **建物** | `[1, 2]` | 建物、橋 | 建築物編集 |
+| **植物** | `[15, 62]` | 木、花 | 植物・自然編集 |
+
+> 💡 **ヒント**: より詳細なクラスID一覧はGoogle Cloud Vision APIのラベル検出ドキュメントを参照してください。
 
 ---
 
@@ -344,6 +517,20 @@ DEBUG=1 npm run dev # デバッグモード（詳細ログあり）
 | 画像生成失敗        | プロンプトをより具体的にするか、`safety_level` を緩和            |
 | アップスケーリング失敗   | 入力ファイルの存在と画像形式（PNG, JPG など）を確認                |
 | base64 表示されない | Claude が対応していない、または画像が大きすぎる可能性あり              |
+| **画像編集失敗**       | **以下の画像編集関連トラブルシューティングを参照**                    |
+
+### 🔧 画像編集関連トラブルシューティング
+
+| 症状 | 原因 | 解決策 |
+|------|------|-------|
+| マスクが期待通りに動作しない | 自動マスク生成の精度問題 | `mask_dilation`を調整（0.01-0.05）、または手動マスクに変更 |
+| セマンティックマスクエラー | `mask_classes`未指定 | `mask_classes: [175, 176]`など適切なクラスIDを指定 |
+| 編集結果が不自然 | `base_steps`が不適切 | 除去: 12-18、挿入: 20-35、背景置換: 20-25 に調整 |
+| 境界がぼやける | マスク境界の問題 | `mask_dilation`を小さく（0.005-0.01）、マスク画像の解像度確認 |
+| プロンプトが効かない | `guidance_scale`が低い | `guidance_scale: 15-25`に設定、`negative_prompt`も併用 |
+| パラメータ組み合わせエラー | 互換性のない設定 | `mask_mode: "semantic"`には`mask_classes`必須など確認 |
+| 処理時間が長い | `base_steps`が高すぎる | 用途に応じて適切な値に調整（上記推奨表を参照） |
+| マスク画像が読み込めない | ファイル形式・パスの問題 | PNG形式推奨、パスの確認、ファイルサイズ10MB以下 |
 
 ---
 
@@ -386,7 +573,7 @@ Vertex AI の Generative AI モデルの一部を利用しており、**従量�
 ### 無料枠について
 
 - **Google Cloud 無料トライアル**：新規アカウントに $300 クレジット（90日間）付与
-- Vertex AI 自体には常設の無料枠はありませんが、クレジット消費によって Imagen の試用が可能です
+- Vertex AI 自体には常設の無料枠はありません
 
 > ⚠️ 実際の料金やリージョンごとの価格変動、課金単位などは必ず公式サイトでご確認ください。
 
