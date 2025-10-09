@@ -2,6 +2,7 @@
 
 [![npm version](https://badge.fury.io/js/@dondonudonjp%2Fvertexai-imagen-mcp-server.svg)](https://badge.fury.io/js/@dondonudonjp%2Fvertexai-imagen-mcp-server)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![npm downloads](https://img.shields.io/npm/dm/openai-gpt-image-mcp-server.svg)](https://www.npmjs.com/package/openai-gpt-image-mcp-server)
 
 **🆕 Latest Update**: Imagen 3.0対応、高度な画像編集機能追加（自動マスク生成、セマンティック分割、背景置換）
 
