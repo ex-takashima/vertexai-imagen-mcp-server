@@ -12,199 +12,35 @@ import fs from 'fs/promises';
 import path from 'path';
 import { GoogleAuth } from 'google-auth-library';
 import { createRequire } from 'module';
+import { normalizeAndValidatePath, getDisplayPath } from './utils/path.js';
+import { getProjectId, getImagenApiUrl, getUpscaleApiUrl } from './utils/auth.js';
+import {
+  normalizeBase64String,
+  detectMimeTypeFromPath,
+  resolveImageSource,
+  createImageResponse,
+  type ResolvedImageSource
+} from './utils/image.js';
+import type {
+  GoogleImagenRequest,
+  GoogleImagenResponse,
+  GoogleUpscaleRequest,
+  GoogleImagenEditRequest,
+  ReferenceImage
+} from './types/api.js';
+import type {
+  GenerateImageArgs,
+  UpscaleImageArgs,
+  GenerateAndUpscaleImageArgs,
+  ListGeneratedImagesArgs,
+  EditImageArgs
+} from './types/tools.js';
 
 const require = createRequire(import.meta.url);
 const { version: PACKAGE_VERSION } = require('../package.json') as { version: string };
 
 // Google Imagen API の設定
-const GOOGLE_REGION = process.env.GOOGLE_REGION || 'us-central1';
-const GOOGLE_IMAGEN_MODEL = process.env.GOOGLE_IMAGEN_MODEL || 'imagen-3.0-generate-002';
-const GOOGLE_IMAGEN_UPSCALE_MODEL = process.env.GOOGLE_IMAGEN_UPSCALE_MODEL || 'imagegeneration@002';
 const GOOGLE_IMAGEN_EDIT_MODEL = process.env.GOOGLE_IMAGEN_EDIT_MODEL || 'imagen-3.0-capability-001';
-
-// プロジェクトIDを動的に取得するための関数
-let PROJECT_ID: string | null = null;
-
-async function getProjectId(auth: GoogleAuth): Promise<string> {
-  if (PROJECT_ID) {
-    return PROJECT_ID;
-  }
-  
-  // 環境変数から取得を試行
-  if (process.env.GOOGLE_PROJECT_ID) {
-    PROJECT_ID = process.env.GOOGLE_PROJECT_ID;
-    return PROJECT_ID;
-  }
-  
-  // サービスアカウントキーファイルから取得を試行
-  try {
-    const authClient = await auth.getClient();
-    PROJECT_ID = await auth.getProjectId();
-    if (PROJECT_ID) {
-      return PROJECT_ID;
-    }
-  } catch (error) {
-    if (process.env.DEBUG) {
-      console.error('[DEBUG] Failed to get project ID from service account:', error);
-    }
-  }
-  
-  throw new Error('Project ID not found. Please set GOOGLE_PROJECT_ID environment variable or ensure service account key contains project_id.');
-}
-
-// APIのURLを動的に生成する関数
-function getImagenApiUrl(projectId: string, model?: string, region?: string): string {
-  const selectedModel = model || GOOGLE_IMAGEN_MODEL;
-  const selectedRegion = region || GOOGLE_REGION;
-  return `https://${selectedRegion}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${selectedRegion}/publishers/google/models/${selectedModel}:predict`;
-}
-
-function getUpscaleApiUrl(projectId: string, region?: string): string {
-  const selectedRegion = region || GOOGLE_REGION;
-  return `https://${selectedRegion}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${selectedRegion}/publishers/google/models/${GOOGLE_IMAGEN_UPSCALE_MODEL}:predict`;
-}
-
-interface GoogleImagenRequestInstance {
-  prompt: string;
-  image?: {
-    bytesBase64Encoded?: string;
-    gcsUri?: string;
-    mimeType?: string;
-  };
-  mask?: {
-    image?: {
-      bytesBase64Encoded?: string;
-      gcsUri?: string;
-      mimeType?: string;
-    };
-    polygons?: Array<unknown>;
-  };
-}
-
-interface GoogleImagenRequest {
-  instances: Array<GoogleImagenRequestInstance>;
-  parameters?: {
-    sampleCount?: number;
-    aspectRatio?: string;
-    safetySettings?: Array<{
-      category: string;
-      threshold: string;
-    }>;
-    personGeneration?: string;
-    language?: string;
-  };
-}
-
-interface GoogleUpscaleRequest {
-  instances: Array<{
-    prompt?: string;
-    image?: {
-      bytesBase64Encoded: string;
-    };
-  }>;
-  parameters: {
-    mode: string;
-    upscaleConfig: {
-      upscaleFactor: string;
-    };
-    sampleCount?: number;
-  };
-}
-
-interface GoogleImagenResponse {
-  predictions: Array<{
-    bytesBase64Encoded: string;
-    mimeType: string;
-  }>;
-}
-
-interface ReferenceImage {
-  referenceType: "REFERENCE_TYPE_RAW" | "REFERENCE_TYPE_MASK";
-  referenceId: number;
-  referenceImage?: {
-    bytesBase64Encoded: string;
-    mimeType?: string;
-  };
-  maskImageConfig?: {
-    maskMode: "MASK_MODE_USER_PROVIDED" | "MASK_MODE_BACKGROUND" | "MASK_MODE_FOREGROUND" | "MASK_MODE_SEMANTIC";
-    maskClasses?: number[];
-    dilation?: number;
-  };
-}
-
-interface GoogleImagenEditRequest {
-  instances: Array<{
-    prompt: string;
-    referenceImages: ReferenceImage[];
-  }>;
-  parameters: {
-    editMode: "EDIT_MODE_INPAINT_REMOVAL" | "EDIT_MODE_INPAINT_INSERTION" | "EDIT_MODE_BGSWAP" | "edit";
-    editConfig?: {
-      baseSteps?: number;
-    };
-    sampleCount?: number;
-    guidanceScale?: number;
-    negativePrompt?: string;
-  };
-}
-
-
-interface GenerateImageArgs {
-  prompt: string;
-  output_path?: string;
-  aspect_ratio?: "1:1" | "3:4" | "4:3" | "9:16" | "16:9";
-  return_base64?: boolean;
-  safety_level?: "BLOCK_NONE" | "BLOCK_ONLY_HIGH" | "BLOCK_MEDIUM_AND_ABOVE" | "BLOCK_LOW_AND_ABOVE";
-  person_generation?: "DONT_ALLOW" | "ALLOW_ADULT" | "ALLOW_ALL";
-  language?: "auto" | "en" | "zh" | "zh-TW" | "hi" | "ja" | "ko" | "pt" | "es";
-  model?: "imagen-4.0-ultra-generate-preview-06-06" | "imagen-4.0-fast-generate-preview-06-06" | "imagen-4.0-generate-preview-06-06" | "imagen-3.0-generate-002" | "imagen-3.0-fast-generate-001";
-  region?: string;
-}
-
-interface UpscaleImageArgs {
-  input_path: string;
-  output_path?: string;
-  scale_factor?: "2" | "4";
-  return_base64?: boolean;
-  region?: string;
-}
-
-interface GenerateAndUpscaleImageArgs {
-  prompt: string;
-  output_path?: string;
-  aspect_ratio?: "1:1" | "3:4" | "4:3" | "9:16" | "16:9";
-  scale_factor?: "2" | "4";
-  return_base64?: boolean;
-  safety_level?: "BLOCK_NONE" | "BLOCK_ONLY_HIGH" | "BLOCK_MEDIUM_AND_ABOVE" | "BLOCK_LOW_AND_ABOVE";
-  person_generation?: "DONT_ALLOW" | "ALLOW_ADULT" | "ALLOW_ALL";
-  language?: "auto" | "en" | "zh" | "zh-TW" | "hi" | "ja" | "ko" | "pt" | "es";
-  model?: "imagen-4.0-ultra-generate-preview-06-06" | "imagen-4.0-fast-generate-preview-06-06" | "imagen-4.0-generate-preview-06-06" | "imagen-3.0-generate-002" | "imagen-3.0-fast-generate-001";
-  region?: string;
-}
-
-interface ListGeneratedImagesArgs {
-  directory?: string;
-}
-
-interface EditImageArgs {
-  prompt: string;
-  reference_image_base64?: string;
-  reference_image_path?: string;
-  mask_image_base64?: string;
-  mask_image_path?: string;
-  mask_mode?: "background" | "foreground" | "semantic" | "user_provided";
-  mask_classes?: number[];
-  mask_dilation?: number;
-  edit_mode?: "inpaint_removal" | "inpaint_insertion" | "bgswap";
-  base_steps?: number;
-  output_path?: string;
-  return_base64?: boolean;
-  guidance_scale?: number;
-  sample_count?: number;
-  negative_prompt?: string;
-  model?: string;
-  region?: string;
-}
 
 const TOOL_GENERATE_IMAGE = "generate_image";
 const TOOL_UPSCALE_IMAGE = "upscale_image";
@@ -212,137 +48,9 @@ const TOOL_GENERATE_AND_UPSCALE_IMAGE = "generate_and_upscale_image";
 const TOOL_LIST_GENERATED_IMAGES = "list_generated_images";
 const TOOL_EDIT_IMAGE = "edit_image";
 
-function normalizeBase64String(input: string): string {
-  const trimmed = input.trim();
-  const commaIndex = trimmed.indexOf(',');
-  if (trimmed.startsWith('data:') && commaIndex !== -1) {
-    return trimmed.slice(commaIndex + 1).replace(/\s/g, '');
-  }
-  return trimmed.replace(/\s/g, '');
-}
-
-interface ResolvedImageSource {
-  base64: string;
-  mimeType?: string;
-  source: "base64" | "data-uri" | "file";
-  filePath?: string;
-}
-
-function detectMimeTypeFromPath(filePath: string): string | undefined {
-  const ext = path.extname(filePath).toLowerCase();
-  switch (ext) {
-    case ".png":
-      return "image/png";
-    case ".jpg":
-    case ".jpeg":
-      return "image/jpeg";
-    case ".webp":
-      return "image/webp";
-    case ".bmp":
-      return "image/bmp";
-    case ".gif":
-      return "image/gif";
-    case ".tif":
-    case ".tiff":
-      return "image/tiff";
-    default:
-      return undefined;
-  }
-}
-
-async function resolveImageSource({
-  base64Value,
-  pathValue,
-  label,
-  required,
-}: {
-  base64Value?: string;
-  pathValue?: string;
-  label: string;
-  required?: boolean;
-}): Promise<ResolvedImageSource | undefined> {
-  if (base64Value && typeof base64Value === 'string' && base64Value.trim().length > 0) {
-    const trimmed = base64Value.trim();
-    if (trimmed.startsWith('data:')) {
-      const commaIndex = trimmed.indexOf(',');
-      if (commaIndex === -1) {
-        throw new McpError(ErrorCode.InvalidParams, `${label} data URI is malformed`);
-      }
-      const header = trimmed.slice(5, commaIndex); // drop 'data:'
-      const normalized = trimmed.slice(commaIndex + 1).replace(/\s/g, '');
-      if (!normalized) {
-        throw new McpError(ErrorCode.InvalidParams, `${label} data URI contains no base64 data`);
-      }
-      const mimeType = header.split(';')[0] || undefined;
-      return {
-        base64: normalized,
-        mimeType,
-        source: "data-uri",
-      };
-    }
-    const normalized = normalizeBase64String(base64Value);
-    if (!normalized) {
-      throw new McpError(ErrorCode.InvalidParams, `${label} base64 string is empty`);
-    }
-    return {
-      base64: normalized,
-      source: "base64",
-    };
-  }
-
-  if (pathValue && typeof pathValue === 'string' && pathValue.trim().length > 0) {
-    const fullPath = path.resolve(pathValue);
-    try {
-      const buffer = await fs.readFile(fullPath);
-      return {
-        base64: buffer.toString('base64'),
-        mimeType: detectMimeTypeFromPath(fullPath),
-        source: "file",
-        filePath: fullPath,
-      };
-    } catch (error) {
-      throw new McpError(
-        ErrorCode.InvalidParams,
-        `${label} file could not be read from path: ${fullPath} (${error instanceof Error ? error.message : String(error)})`
-      );
-    }
-  }
-
-  if (required) {
-    throw new McpError(ErrorCode.InvalidParams, `${label} is required as base64 string or file path`);
-  }
-
-  return undefined;
-}
-
 class GoogleImagenMCPServer {
   private server: Server;
   private auth: GoogleAuth;
-
-  private createImageResponse(imageBuffer: Buffer, mimeType: string, filePath?: string, additionalInfo?: string) {
-    const base64Data = imageBuffer.toString('base64');
-    const dataUrl = `data:${mimeType};base64,${base64Data}`;
-    
-    let responseText = additionalInfo || '';
-    if (filePath) {
-      responseText += `\nSaved to: ${filePath}`;
-    }
-    responseText += `\nFile size: ${imageBuffer.length} bytes\nMIME type: ${mimeType}`;
-
-    return {
-      content: [
-        {
-          type: "text",
-          text: responseText
-        },
-        {
-          type: "image",
-          data: dataUrl,
-          mimeType: mimeType
-        }
-      ],
-    };
-  }
 
   constructor() {
     this.server = new Server(
@@ -385,13 +93,34 @@ Usage: vertexai-imagen-mcp-server [options]
 Options:
   -v, --version    Show version number
   -h, --help       Show help
-  
+
 Environment Variables:
   GOOGLE_SERVICE_ACCOUNT_KEY      Service account JSON key (required)
   GOOGLE_PROJECT_ID               Google Cloud Project ID (optional, auto-detected from service account)
   GOOGLE_REGION                   Region (optional, default: us-central1)
-  GOOGLE_IMAGEN_MODEL            Model name (optional, default: imagen-3.0-generate-002)
-  DEBUG                          Enable debug logging
+  GOOGLE_IMAGEN_MODEL             Model name (optional, default: imagen-3.0-generate-002)
+  VERTEXAI_IMAGEN_OUTPUT_DIR      Default output directory for generated images
+                                  (optional, default: ~/Downloads/vertexai-imagen-files)
+  DEBUG                           Enable debug logging
+
+File Path Handling:
+  - Relative paths are saved to VERTEXAI_IMAGEN_OUTPUT_DIR
+  - Absolute paths are used as-is
+  - Parent directories are created automatically
+
+Examples:
+  # Use default output directory
+  output_path: "my_image.png"
+  → ~/Downloads/vertexai-imagen-files/my_image.png
+
+  # Custom output directory via environment variable
+  VERTEXAI_IMAGEN_OUTPUT_DIR=/path/to/images
+  output_path: "my_image.png"
+  → /path/to/images/my_image.png
+
+  # Absolute path (ignores VERTEXAI_IMAGEN_OUTPUT_DIR)
+  output_path: "/tmp/my_image.png"
+  → /tmp/my_image.png
 
 This is an MCP (Model Context Protocol) server for Google Imagen image generation.
 It should be run by an MCP client like Claude Desktop.
@@ -406,7 +135,7 @@ It should be run by an MCP client like Claude Desktop.
         tools: [
           {
             name: TOOL_GENERATE_IMAGE,
-            description: "Generate an image using Google Imagen API",
+            description: "Generate an image using Google Imagen API. Images are saved to ~/Downloads/vertexai-imagen-files by default (customizable via VERTEXAI_IMAGEN_OUTPUT_DIR environment variable).",
             inputSchema: {
               type: "object",
               properties: {
@@ -416,7 +145,7 @@ It should be run by an MCP client like Claude Desktop.
                 },
                 output_path: {
                   type: "string",
-                  description: "Optional path to save the generated image (default: generated_image.png)",
+                  description: "Path to save the generated image. Can be absolute or relative to VERTEXAI_IMAGEN_OUTPUT_DIR (default: ~/Downloads/vertexai-imagen-files). Default filename: generated_image.png",
                 },
                 aspect_ratio: {
                   type: "string",
@@ -425,7 +154,7 @@ It should be run by an MCP client like Claude Desktop.
                 },
                 return_base64: {
                   type: "boolean",
-                  description: "Return image as base64 encoded data for display in MCP client instead of saving to file (default: false)",
+                  description: "Return image as base64 encoded data for display in MCP client instead of saving to file (default: false). WARNING: Consumes ~1,500 tokens per image. File save mode is recommended for better performance.",
                 },
                 safety_level: {
                   type: "string",
@@ -457,7 +186,7 @@ It should be run by an MCP client like Claude Desktop.
           },
           {
             name: TOOL_EDIT_IMAGE,
-            description: "Edit an existing image using Google Imagen API with support for automatic mask generation, semantic segmentation, and various edit modes (inpainting, background replacement)",
+            description: "Edit an existing image using Google Imagen API with support for automatic mask generation, semantic segmentation, and various edit modes (inpainting, background replacement). Images are saved to ~/Downloads/vertexai-imagen-files by default (customizable via VERTEXAI_IMAGEN_OUTPUT_DIR environment variable).",
             inputSchema: {
               type: "object",
               properties: {
@@ -510,11 +239,11 @@ It should be run by an MCP client like Claude Desktop.
                 },
                 output_path: {
                   type: "string",
-                  description: "Optional path to save the edited image (default: edited_image.png)",
+                  description: "Path to save the edited image. Can be absolute or relative to VERTEXAI_IMAGEN_OUTPUT_DIR (default: ~/Downloads/vertexai-imagen-files). Default filename: edited_image.png",
                 },
                 return_base64: {
                   type: "boolean",
-                  description: "Return edited image as base64 data instead of writing to disk (default: false)",
+                  description: "Return edited image as base64 data instead of writing to disk (default: false). WARNING: Consumes ~1,500 tokens per image. File save mode is recommended for better performance.",
                 },
                 guidance_scale: {
                   type: "number",
@@ -546,7 +275,7 @@ It should be run by an MCP client like Claude Desktop.
           },
           {
             name: TOOL_UPSCALE_IMAGE,
-            description: "Upscale an existing image using Google Imagen API",
+            description: "Upscale an existing image using Google Imagen API. Images are saved to ~/Downloads/vertexai-imagen-files by default (customizable via VERTEXAI_IMAGEN_OUTPUT_DIR environment variable).",
             inputSchema: {
               type: "object",
               properties: {
@@ -556,7 +285,7 @@ It should be run by an MCP client like Claude Desktop.
                 },
                 output_path: {
                   type: "string",
-                  description: "Optional path to save the upscaled image (default: upscaled_[original_name])",
+                  description: "Path to save the upscaled image. Can be absolute or relative to VERTEXAI_IMAGEN_OUTPUT_DIR (default: ~/Downloads/vertexai-imagen-files). Default filename: upscaled_[scale_factor]x_[original_name]",
                 },
                 scale_factor: {
                   type: "string",
@@ -565,7 +294,7 @@ It should be run by an MCP client like Claude Desktop.
                 },
                 return_base64: {
                   type: "boolean",
-                  description: "Return image as base64 encoded data for display in MCP client instead of saving to file (default: false)",
+                  description: "Return image as base64 encoded data for display in MCP client instead of saving to file (default: false). WARNING: Consumes ~1,500 tokens per image. File save mode is recommended for better performance.",
                 },
                 region: {
                   type: "string",
@@ -577,7 +306,7 @@ It should be run by an MCP client like Claude Desktop.
           },
           {
             name: TOOL_GENERATE_AND_UPSCALE_IMAGE,
-            description: "Generate an image and automatically upscale it using Google Imagen API",
+            description: "Generate an image and automatically upscale it using Google Imagen API. Images are saved to ~/Downloads/vertexai-imagen-files by default (customizable via VERTEXAI_IMAGEN_OUTPUT_DIR environment variable).",
             inputSchema: {
               type: "object",
               properties: {
@@ -587,7 +316,7 @@ It should be run by an MCP client like Claude Desktop.
                 },
                 output_path: {
                   type: "string",
-                  description: "Optional path to save the final upscaled image (default: generated_upscaled_image.png)",
+                  description: "Path to save the final upscaled image. Can be absolute or relative to VERTEXAI_IMAGEN_OUTPUT_DIR (default: ~/Downloads/vertexai-imagen-files). Default filename: generated_upscaled_image.png",
                 },
                 aspect_ratio: {
                   type: "string",
@@ -601,7 +330,7 @@ It should be run by an MCP client like Claude Desktop.
                 },
                 return_base64: {
                   type: "boolean",
-                  description: "Return image as base64 encoded data for display in MCP client instead of saving to file (default: false)",
+                  description: "Return image as base64 encoded data for display in MCP client instead of saving to file (default: false). WARNING: Consumes ~1,500 tokens per image. File save mode is recommended for better performance.",
                 },
                 safety_level: {
                   type: "string",
@@ -698,10 +427,16 @@ It should be run by an MCP client like Claude Desktop.
       throw new McpError(ErrorCode.InvalidParams, "prompt is required and must be a string");
     }
 
+    // Normalize path BEFORE API call (to avoid wasting API quota on invalid paths)
+    const normalizedPath = return_base64 ? undefined : await normalizeAndValidatePath(output_path);
+
     // デバッグログ
     if (process.env.DEBUG) {
       console.error(`[DEBUG] Generating image with prompt: ${prompt}`);
       console.error(`[DEBUG] Output path: ${output_path}`);
+      if (normalizedPath) {
+        console.error(`[DEBUG] Normalized path: ${normalizedPath}`);
+      }
       console.error(`[DEBUG] Aspect ratio: ${aspect_ratio}`);
       console.error(`[DEBUG] Safety level: ${safety_level}`);
       console.error(`[DEBUG] Model: ${model}`);
@@ -776,27 +511,38 @@ It should be run by an MCP client like Claude Desktop.
         if (process.env.DEBUG) {
           console.error(`[DEBUG] Returning image as base64 data`);
         }
+
+        // 警告: Base64モードのトークン消費について
+        console.error(`[WARNING] return_base64=true consumes ~1,500 tokens per image in MCP protocol.`);
+        console.error(`[WARNING] Consider using file save mode (return_base64=false) for better performance.`);
         
-        return this.createImageResponse(
-          imageBuffer, 
+        return createImageResponse(
+          imageBuffer,
           generatedImage.mimeType,
           undefined,
           `Image generated successfully!\n\nPrompt: ${prompt}\nAspect ratio: ${aspect_ratio}\nModel: ${model}`
         );
       } else {
         // ファイル保存モード
-        const fullPath = path.resolve(output_path);
-        await fs.writeFile(fullPath, imageBuffer);
-
-        if (process.env.DEBUG) {
-          console.error(`[DEBUG] Image saved to: ${fullPath}`);
+        if (!normalizedPath) {
+          throw new Error(
+            'Normalized path is required for file save mode.\n' +
+            'This is an internal error - please report this issue.'
+          );
         }
 
+        await fs.writeFile(normalizedPath, imageBuffer);
+
+        if (process.env.DEBUG) {
+          console.error(`[DEBUG] Image saved to: ${normalizedPath}`);
+        }
+
+        const displayPath = getDisplayPath(normalizedPath);
         return {
           content: [
             {
               type: "text",
-              text: `Image generated successfully!\n\nPrompt: ${prompt}\nAspect ratio: ${aspect_ratio}\nModel: ${model}\nSaved to: ${fullPath}\nFile size: ${imageBuffer.length} bytes\nMIME type: ${generatedImage.mimeType}`
+              text: `Image generated successfully!\n\nPrompt: ${prompt}\nAspect ratio: ${aspect_ratio}\nModel: ${model}\nSaved to: ${displayPath}\nFile size: ${imageBuffer.length} bytes\nMIME type: ${generatedImage.mimeType}`
             }
           ],
         };
@@ -855,6 +601,9 @@ It should be run by an MCP client like Claude Desktop.
     if (sample_count !== 1) {
       throw new McpError(ErrorCode.InvalidParams, "sample_count other than 1 is not supported yet");
     }
+
+    // Normalize path BEFORE API call
+    const normalizedPath = return_base64 ? undefined : await normalizeAndValidatePath(output_path);
 
     // Parameter validation for mask mode and mask sources
     if (mask_mode === "semantic" && (!mask_classes || mask_classes.length === 0)) {
@@ -1064,7 +813,11 @@ It should be run by an MCP client like Claude Desktop.
       const infoText = `Image edited successfully!\n\nPrompt: ${prompt}\nModel: ${model}\nEdit mode: ${edit_mode}\nMask mode: ${mask_mode}\nMask applied: ${maskApplied}`;
 
       if (return_base64) {
-        return this.createImageResponse(
+        // 警告: Base64モードのトークン消費について
+        console.error(`[WARNING] return_base64=true consumes ~1,500 tokens per image in MCP protocol.`);
+        console.error(`[WARNING] Consider using file save mode (return_base64=false) for better performance.`);
+
+        return createImageResponse(
           imageBuffer,
           editedImage.mimeType,
           undefined,
@@ -1072,14 +825,18 @@ It should be run by an MCP client like Claude Desktop.
         );
       }
 
-      const fullPath = path.resolve(output_path);
-      await fs.writeFile(fullPath, imageBuffer);
+      if (!normalizedPath) {
+        throw new Error('Normalized path is required for file save mode');
+      }
 
+      await fs.writeFile(normalizedPath, imageBuffer);
+
+      const displayPath = getDisplayPath(normalizedPath);
       return {
         content: [
           {
             type: "text",
-            text: `${infoText}\nSaved to: ${fullPath}\nFile size: ${imageBuffer.length} bytes\nMIME type: ${editedImage.mimeType}`
+            text: `${infoText}\nSaved to: ${displayPath}\nFile size: ${imageBuffer.length} bytes\nMIME type: ${editedImage.mimeType}`
           }
         ],
       };
@@ -1138,6 +895,9 @@ It should be run by an MCP client like Claude Desktop.
       const defaultOutputPath = path.join(parsedPath.dir, `upscaled_${scale_factor}x_${parsedPath.base}`);
       const finalOutputPath = output_path || defaultOutputPath;
 
+      // Normalize path BEFORE API call
+      const normalizedPath = return_base64 ? undefined : await normalizeAndValidatePath(finalOutputPath);
+
       const requestBody: GoogleUpscaleRequest = {
         instances: [
           {
@@ -1192,27 +952,38 @@ It should be run by an MCP client like Claude Desktop.
         if (process.env.DEBUG) {
           console.error(`[DEBUG] Returning upscaled image as base64 data`);
         }
-        
-        return this.createImageResponse(
-          imageBuffer, 
+
+        // 警告: Base64モードのトークン消費について
+        console.error(`[WARNING] return_base64=true consumes ~1,500 tokens per image in MCP protocol.`);
+        console.error(`[WARNING] Consider using file save mode (return_base64=false) for better performance.`);
+
+        return createImageResponse(
+          imageBuffer,
           upscaledImage.mimeType,
           undefined,
           `Image upscaled successfully!\n\nInput: ${input_path}\nScale factor: ${scale_factor}`
         );
       } else {
         // ファイル保存モード
-        const fullPath = path.resolve(finalOutputPath);
-        await fs.writeFile(fullPath, imageBuffer);
-
-        if (process.env.DEBUG) {
-          console.error(`[DEBUG] Upscaled image saved to: ${fullPath}`);
+        if (!normalizedPath) {
+          throw new Error(
+            'Normalized path is required for file save mode.\n' +
+            'This is an internal error - please report this issue.'
+          );
         }
 
+        await fs.writeFile(normalizedPath, imageBuffer);
+
+        if (process.env.DEBUG) {
+          console.error(`[DEBUG] Upscaled image saved to: ${normalizedPath}`);
+        }
+
+        const displayPath = getDisplayPath(normalizedPath);
         return {
           content: [
             {
               type: "text",
-              text: `Image upscaled successfully!\n\nInput: ${input_path}\nScale factor: ${scale_factor}\nSaved to: ${fullPath}\nFile size: ${imageBuffer.length} bytes\nMIME type: ${upscaledImage.mimeType}`
+              text: `Image upscaled successfully!\n\nInput: ${input_path}\nScale factor: ${scale_factor}\nSaved to: ${displayPath}\nFile size: ${imageBuffer.length} bytes\nMIME type: ${upscaledImage.mimeType}`
             }
           ],
         };
@@ -1337,11 +1108,14 @@ It should be run by an MCP client like Claude Desktop.
         };
       } else {
         // ファイル保存モード
+        const normalizedPath = await normalizeAndValidatePath(output_path);
+        const displayPath = getDisplayPath(normalizedPath);
+
         return {
           content: [
             {
               type: "text",
-              text: `Image generated and upscaled successfully!\n\nPrompt: ${prompt}\nAspect ratio: ${aspect_ratio}\nModel: ${model}\nScale factor: ${scale_factor}\nFinal output: ${path.resolve(output_path)}\n\nProcess completed in 2 steps:\n1. Generated original image\n2. Upscaled to ${scale_factor}x resolution`
+              text: `Image generated and upscaled successfully!\n\nPrompt: ${prompt}\nAspect ratio: ${aspect_ratio}\nModel: ${model}\nScale factor: ${scale_factor}\nFinal output: ${displayPath}\n\nProcess completed in 2 steps:\n1. Generated original image\n2. Upscaled to ${scale_factor}x resolution`
             }
           ],
         };

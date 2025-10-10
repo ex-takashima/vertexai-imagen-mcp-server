@@ -6,6 +6,7 @@ src/
 # Build artifacts
 tsconfig.json
 tsconfig.*.json
+vitest.config.ts
 
 # Logs
 logs

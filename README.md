@@ -548,7 +548,153 @@ vertexai-imagen-mcp-server --version
 | `GOOGLE_SERVICE_ACCOUNT_KEY`     | ✅  | JSON文字列として直接渡す（代替手段）        |
 | `GOOGLE_PROJECT_ID`              | ❌  | プロジェクトID（通常は自動取得）           |
 | `GOOGLE_REGION`                  | ❌  | 利用リージョン（例: asia-northeast1） |
+| `VERTEXAI_IMAGEN_OUTPUT_DIR`     | ❌  | 画像ファイルのデフォルト保存先ディレクトリ（省略時: ~/Downloads/vertexai-imagen-files） |
 | `DEBUG`                          | ❌  | "1" を指定するとデバッグログ有効          |
+
+---
+
+## 📁 ファイル保存パスについて
+
+### デフォルトの保存先
+
+このMCPサーバーは、Claude DesktopなどのMCPクライアントがコンテナ環境で動作することを考慮し、クロスプラットフォーム対応のパス処理を実装しています。
+
+**デフォルト保存先**: `~/Downloads/vertexai-imagen-files/`
+
+- macOS: `/Users/username/Downloads/vertexai-imagen-files/`
+- Windows: `C:\Users\username\Downloads\vertexai-imagen-files\`
+- Linux: `/home/username/Downloads/vertexai-imagen-files/`
+
+### パス指定の方法
+
+#### 1. 相対パスを指定（推奨）
+```text
+# デフォルトディレクトリ配下に保存される
+output_path: "my_image.png"
+→ ~/Downloads/vertexai-imagen-files/my_image.png
+
+# サブディレクトリも自動作成される
+output_path: "animals/cat.png"
+→ ~/Downloads/vertexai-imagen-files/animals/cat.png
+```
+
+#### 2. 絶対パスを指定
+```text
+# 絶対パスはそのまま使用される
+output_path: "/Users/username/Desktop/image.png"
+→ /Users/username/Desktop/image.png
+
+# Windowsの場合
+output_path: "C:\\Users\\username\\Pictures\\image.png"
+→ C:\Users\username\Pictures\image.png
+```
+
+#### 3. 環境変数でカスタマイズ
+```json
+{
+  "mcpServers": {
+    "google-imagen": {
+      "command": "vertexai-imagen-mcp-server",
+      "env": {
+        "GOOGLE_APPLICATION_CREDENTIALS": "/path/to/key.json",
+        "VERTEXAI_IMAGEN_OUTPUT_DIR": "/Users/username/MyImages"
+      }
+    }
+  }
+}
+```
+
+この設定により、相対パスは `/Users/username/MyImages/` 配下に保存されます。
+
+### 自動機能
+
+✅ **親ディレクトリの自動作成**: 指定されたパスの親ディレクトリが存在しない場合、自動的に作成されます
+✅ **パス検証**: API呼び出し前にパスを検証するため、APIクォータの無駄遣いを防止
+✅ **ユーザーフレンドリーな表示**: 保存先は `~` 表記で表示されます（例: `~/Downloads/vertexai-imagen-files/image.png`）
+
+---
+
+## ⚡ パフォーマンスとベストプラクティス
+
+### 🖼️ 画像返却モードの選択
+
+このMCPサーバーは2つの画像返却モードをサポートしています：
+
+#### 1. ファイル保存モード（推奨）✅
+
+```text
+return_base64: false  # デフォルト
+```
+
+**メリット:**
+- ⚡ **トークン消費が少ない**: MCPプロトコルでの通信量を大幅削減
+- 📁 **ファイル管理が容易**: 生成した画像をローカルファイルとして保存
+- 💾 **大きな画像も扱える**: サイズ制限を気にせず高解像度画像を生成可能
+- 🔄 **再利用が簡単**: 保存されたファイルを他のツールでも使用可能
+
+**推奨される用途:**
+- 通常の画像生成
+- アップスケーリング（高解像度化）
+- 本番環境での使用
+- 複数画像の生成
+
+#### 2. Base64返却モード
+
+```text
+return_base64: true
+```
+
+**デメリット:**
+- ⚠️ **トークン消費が大きい**: 1画像あたり約1,500トークン消費（約1,000語相当）
+- 📏 **サイズ制限**: MCPプロトコルでは1MB未満推奨
+- 🐌 **通信量増加**: Base64エンコードにより元のサイズの約133%に増加
+- 💬 **会話履歴の圧迫**: 長時間の会話でコンテキストを消費
+
+**注意事項:**
+> このモードを使用すると、生成画像がBase64文字列としてMCPレスポンスに含まれるため、大量のトークンを消費します。
+> `annotations.audience: ["user"]` により画像はLLMのコンテキストからは除外されますが、MCPクライアントへの転送時のトークン消費は削減できません。
+
+**限定的な用途:**
+- 一時的なプレビュー表示
+- テスト・デモンストレーション
+- ファイルシステムアクセスが制限される特殊な環境
+
+### 📊 モード比較表
+
+| 項目 | ファイル保存モード | Base64返却モード |
+|------|------------------|-----------------|
+| トークン消費 | 最小（~100トークン） | 大（~1,500トークン/画像） |
+| サイズ制限 | なし | 1MB未満推奨 |
+| ファイル管理 | ✅ 簡単 | ❌ 不可 |
+| 転送速度 | ⚡ 高速 | 🐌 低速 |
+| 推奨度 | ⭐⭐⭐⭐⭐ | ⭐⭐ |
+
+### 💡 推奨事項
+
+**✅ ファイル保存モードを使用する場合（推奨）:**
+```text
+# 指示例
+「美しい夕日の風景を生成して、sunset.pngとして保存してください」
+```
+
+**⚠️ Base64モードは避ける:**
+```text
+# 非推奨の指示例
+「return_base64をtrueにして生成してください」
+→ トークン消費が大きいため、特別な理由がない限り使用しないでください
+```
+
+### 🔍 MCP Resources（将来的な機能）
+
+Model Context Protocolの仕様では、大きなファイルやバイナリデータを扱う場合、以下の方法が推奨されています：
+
+- **URIベースのリソース管理**: `file://` や `resource://` スキームを使用
+- **遅延読み込み**: クライアントが必要な時だけデータを取得
+- **リソースAPI**: `resources/list` と `resources/read` エンドポイント
+
+> 📚 参考: [MCP Specification - Resources](https://modelcontextprotocol.io/specification/2025-06-18/server/resources)
+
+現在の実装では、ファイル保存モードがこの思想に最も近い形で実装されています。
 
 ---
 
