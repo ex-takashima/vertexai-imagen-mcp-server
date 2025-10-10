@@ -13,9 +13,10 @@ Vertex AI の Imagen API を使用して画像を生成・編集できる MCP（
 ## 🌟 主な機能
 
 - 🎨 **画像生成**：テキストから高品質な画像を生成
+- ✨ **画像カスタマイズ（NEW!）**：参照画像を使った高度な画像生成（構造制御、被写体一貫性、スタイル転送）
 - ✂️ **高度な画像編集**：AIマスク生成、セマンティック編集、背景置換対応
-- ✨ **マスクなし編集（NEW!）**：プロンプトのみで簡単に画像編集
-- 🎭 **5つのマスクモード**：マスクフリー、手動マスク、背景自動検出、前景自動検出、セマンティック分割
+- 🎭 **マスクなし編集**：プロンプトのみで簡単に画像編集
+- 🎯 **5つのマスクモード**：マスクフリー、手動マスク、背景自動検出、前景自動検出、セマンティック分割
 - 🔄 **多様な編集モード**：インペイント除去、インペイント挿入、背景置換、アウトペインティング
 - 📐 **アスペクト比の指定**：1:1, 3:4, 4:3, 9:16, 16:9 に対応
 - 🔍 **アップスケーリング**：画像を 2 倍または 4 倍に高品質拡大
@@ -221,8 +222,8 @@ Claude Code の設定ファイルに以下を追加してください：
 この画像の人物部分だけを別の服装に変更してください
 ```
 ## 🧪 使用例（Claude Code 指示文）※Imagen 3を利用
-以下は、Claude Code で VertexAI Imagen MCP サーバーを使用して画像を生成・保存するための自然言語プロンプトの例です。  
-保存先は `<<PROJECT_FOLDER>>\docs\images\` を想定しています。
+以下は、Claude Code で VertexAI Imagen MCP サーバーを使用して画像を生成・保存するための自然言語プロンプトの例です。
+画像は相対パスで指定すると、デフォルトの保存先 `~/Downloads/vertexai-imagen-files/` に保存されます。
 
 
 ### 🏞️ 例1：美しい夕日の風景
@@ -268,7 +269,7 @@ Claude Code の設定ファイルに以下を追加してください：
 
 ---
 
-### 🖼️ 例5：背景自動置換（人物写真 → 宇宙背景）
+### 🖼️ 例5：背景自動置換（人物写真 → 森背景）
 
 ```text
 [元画像のファイルパスを記述]
@@ -296,7 +297,7 @@ base_steps は 16、guidance_scale は 10 にしてください。
 保存先は clean_sofa.png にしてください。
 ```
 
-![例6](./docs/images/upscaled_2x_sofa_cushion_1.png)
+![例6](./docs/images/sofa_cushion.png)
 元画像
 
 ![例6](./docs/images/clean_sofa.png)
@@ -453,7 +454,123 @@ mask_classes: [125]  # 人物のクラスID（必須）
 
 ---
 
-### 3. `upscale_image`
+### 3. `customize_image` - 参照画像を使った高度な画像カスタマイズ ⭐ **NEW!**
+
+**Imagen 3.0対応**の参照画像を使った画像生成機能。構造制御、被写体一貫性、スタイル転送に対応します。
+
+#### 基本パラメータ
+* `prompt`（必須）: 画像生成のプロンプト（[1], [2]などで参照画像IDを指定可能）
+* `output_path`: 保存ファイル名（省略可、デフォルト: `customized_image.png`）
+* `aspect_ratio`: 画像比率（例: 1:1, 16:9、デフォルト: 1:1）
+* `return_base64`: **非推奨** Base64で返却（デフォルト: false）
+* `include_thumbnail`: サムネイル生成（128x128、約30-50トークン）
+
+#### 参照画像タイプ（少なくとも1つ必須）
+
+##### 🎮 構造制御（Control）
+画像の構造・ポーズ・構図を制御します。
+
+```text
+control_image_path: "pose.png"  # または control_image_base64
+control_type: "face_mesh" | "canny" | "scribble"
+enable_control_computation: false  # true=自動計算、false=提供画像使用
+```
+
+**control_type の種類:**
+- `"face_mesh"`: 顔メッシュ（人物のポーズ制御）
+- `"canny"`: Cannyエッジ検出（輪郭・構造制御）
+- `"scribble"`: フリーハンド描画（ラフな構図指定）
+
+**使用例:**
+```text
+プロンプト: "A portrait of a person [1] in a professional pose"
+control_image_path: "pose_reference.jpg"
+control_type: "face_mesh"
+→ 参照画像[1]のポーズを保ちながら新しい人物を生成
+```
+
+##### 👤 被写体一貫性（Subject）
+同じ被写体を一貫して生成します。複数の参照画像で精度向上。
+
+```text
+subject_images: [
+  { image_path: "person1.jpg" },
+  { image_path: "person2.jpg" }  # 複数指定で品質向上
+]
+subject_description: "a man with short hair"  # 必須
+subject_type: "person" | "animal" | "product" | "default"  # 必須
+```
+
+**subject_type の種類:**
+- `"person"`: 人物
+- `"animal"`: 動物
+- `"product"`: 商品
+- `"default"`: その他の被写体
+
+**使用例:**
+```text
+プロンプト: "A photo of [1] at the beach"
+subject_images: [
+  { image_path: "cat_photo1.jpg" },
+  { image_path: "cat_photo2.jpg" }
+]
+subject_description: "a brown tabby cat"
+subject_type: "animal"
+→ 同じ猫をビーチで撮影したような画像を生成
+```
+
+##### 🎨 スタイル転送（Style）
+参照画像のスタイルを適用します。
+
+```text
+style_image_path: "art_style.jpg"  # または style_image_base64
+style_description: "Van Gogh painting style"  # 省略可
+```
+
+**使用例:**
+```text
+プロンプト: "A landscape in the style of [1]"
+style_image_path: "starry_night.jpg"
+style_description: "Van Gogh's impressionist style"
+→ ゴッホ風の風景画を生成
+```
+
+#### 複合利用
+
+複数の参照タイプを同時に使用できます：
+
+```text
+プロンプト: "A portrait of [1] in the pose of [2] with the style of [3]"
+subject_images: [{ image_path: "person.jpg" }]
+subject_description: "a woman with long hair"
+subject_type: "person"
+control_image_path: "pose.jpg"
+control_type: "face_mesh"
+style_image_path: "painting.jpg"
+style_description: "Renaissance painting style"
+→ 特定の人物を、指定されたポーズで、ルネサンス風に描画
+```
+
+#### その他パラメータ
+* `safety_level`: 安全性フィルター（BLOCK\_NONE〜BLOCK\_LOW\_AND\_ABOVE）
+* `person_generation`: 人物生成ポリシー（DONT\_ALLOW, ALLOW\_ADULT, ALLOW\_ALL）
+* `language`: プロンプト処理言語（auto, en, ja, ko など、デフォルト: auto）
+* `negative_prompt`: 回避したい要素の指示
+* `model`: 使用するImagenモデル（デフォルト: imagen-3.0-generate-002）
+
+#### 📋 参照画像ID について
+
+プロンプト内で `[1]`, `[2]`, `[3]` などを使用して、各参照画像を参照できます：
+
+- Control画像が最初に提供された場合 → `[1]`
+- Subject画像が最初に提供された場合 → `[1]`（複数の被写体画像は同じIDを共有）
+- Style画像が最初に提供された場合 → `[1]`
+
+複数タイプを組み合わせる場合、追加順に番号が割り当てられます。
+
+---
+
+### 4. `upscale_image`
 
 画像を 2 倍 / 4 倍にアップスケールします。
 
@@ -465,7 +582,7 @@ mask_classes: [125]  # 人物のクラスID（必須）
 
 ---
 
-### 4. `generate_and_upscale_image`
+### 5. `generate_and_upscale_image`
 
 画像生成とアップスケーリングを一括で行います。
 `generate_image` と `upscale_image` の統合処理です。
@@ -483,7 +600,7 @@ mask_classes: [125]  # 人物のクラスID（必須）
 
 ---
 
-### 5. `list_generated_images`
+### 6. `list_generated_images`
 
 ディレクトリ内の画像ファイルを一覧表示します。
 

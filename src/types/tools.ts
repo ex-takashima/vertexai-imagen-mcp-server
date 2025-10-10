@@ -62,3 +62,34 @@ export interface EditImageArgs {
   model?: string;
   region?: string;
 }
+
+export interface CustomizeImageArgs {
+  prompt: string;
+  // Control image
+  control_image_base64?: string;
+  control_image_path?: string;
+  control_type?: "face_mesh" | "canny" | "scribble";
+  enable_control_computation?: boolean;
+  // Subject images (multiple images allowed)
+  subject_images?: Array<{
+    image_base64?: string;
+    image_path?: string;
+  }>;
+  subject_description?: string;
+  subject_type?: "person" | "animal" | "product" | "default";
+  // Style image
+  style_image_base64?: string;
+  style_image_path?: string;
+  style_description?: string;
+  // Common parameters
+  output_path?: string;
+  aspect_ratio?: "1:1" | "3:4" | "4:3" | "9:16" | "16:9";
+  return_base64?: boolean;
+  include_thumbnail?: boolean;
+  safety_level?: "BLOCK_NONE" | "BLOCK_ONLY_HIGH" | "BLOCK_MEDIUM_AND_ABOVE" | "BLOCK_LOW_AND_ABOVE";
+  person_generation?: "DONT_ALLOW" | "ALLOW_ADULT" | "ALLOW_ALL";
+  language?: "auto" | "en" | "zh" | "zh-TW" | "hi" | "ja" | "ko" | "pt" | "es";
+  negative_prompt?: string;
+  model?: "imagen-4.0-ultra-generate-preview-06-06" | "imagen-4.0-fast-generate-preview-06-06" | "imagen-4.0-generate-preview-06-06" | "imagen-3.0-generate-002" | "imagen-3.0-fast-generate-001";
+  region?: string;
+}

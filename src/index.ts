@@ -37,7 +37,8 @@ import type {
   UpscaleImageArgs,
   GenerateAndUpscaleImageArgs,
   ListGeneratedImagesArgs,
-  EditImageArgs
+  EditImageArgs,
+  CustomizeImageArgs
 } from './types/tools.js';
 
 const require = createRequire(import.meta.url);
@@ -51,6 +52,7 @@ const TOOL_UPSCALE_IMAGE = "upscale_image";
 const TOOL_GENERATE_AND_UPSCALE_IMAGE = "generate_and_upscale_image";
 const TOOL_LIST_GENERATED_IMAGES = "list_generated_images";
 const TOOL_EDIT_IMAGE = "edit_image";
+const TOOL_CUSTOMIZE_IMAGE = "customize_image";
 
 class GoogleImagenMCPServer {
   private server: Server;
@@ -402,6 +404,121 @@ It should be run by an MCP client like Claude Desktop.
                 }
               },
             },
+          },
+          {
+            name: TOOL_CUSTOMIZE_IMAGE,
+            description: "Generate an image with customization using reference images (control structure, subject consistency, style transfer). Use [1], [2], etc. in prompt to reference images by their ID. Images are saved to ~/Downloads/vertexai-imagen-files by default (customizable via VERTEXAI_IMAGEN_OUTPUT_DIR environment variable).",
+            inputSchema: {
+              type: "object",
+              properties: {
+                prompt: {
+                  type: "string",
+                  description: "Text prompt describing the image to generate. Use [1], [2], etc. to reference control/subject/style images by their ID",
+                },
+                control_image_base64: {
+                  type: "string",
+                  description: "Base64 encoded control image for structure guidance (data URI strings are also accepted)",
+                },
+                control_image_path: {
+                  type: "string",
+                  description: "Path to the control image file; used when base64 is too large",
+                },
+                control_type: {
+                  type: "string",
+                  enum: ["face_mesh", "canny", "scribble"],
+                  description: "Control type: 'face_mesh' (face mesh for person customization), 'canny' (Canny edges), 'scribble' (freehand). Required when control image is provided",
+                },
+                enable_control_computation: {
+                  type: "boolean",
+                  description: "If true, compute control image from REFERENCE_TYPE_RAW image automatically. If false, use provided control image (default: false)",
+                },
+                subject_images: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      image_base64: {
+                        type: "string",
+                        description: "Base64 encoded subject image (data URI strings are also accepted)",
+                      },
+                      image_path: {
+                        type: "string",
+                        description: "Path to the subject image file",
+                      }
+                    }
+                  },
+                  description: "Array of subject reference images. Multiple images of the same subject can improve quality. Provide either image_base64 or image_path for each image",
+                },
+                subject_description: {
+                  type: "string",
+                  description: "Brief description of the subject (e.g., 'a man with short hair', 'a brown dog'). Required when subject_images is provided",
+                },
+                subject_type: {
+                  type: "string",
+                  enum: ["person", "animal", "product", "default"],
+                  description: "Subject type: 'person', 'animal', 'product', or 'default'. Required when subject_images is provided",
+                },
+                style_image_base64: {
+                  type: "string",
+                  description: "Base64 encoded style reference image (data URI strings are also accepted)",
+                },
+                style_image_path: {
+                  type: "string",
+                  description: "Path to the style reference image file; used when base64 is too large",
+                },
+                style_description: {
+                  type: "string",
+                  description: "Optional brief description of the style",
+                },
+                output_path: {
+                  type: "string",
+                  description: "Path to save the generated image. Can be absolute or relative to VERTEXAI_IMAGEN_OUTPUT_DIR (default: ~/Downloads/vertexai-imagen-files). Default filename: customized_image.png",
+                },
+                aspect_ratio: {
+                  type: "string",
+                  enum: ["1:1", "3:4", "4:3", "9:16", "16:9"],
+                  description: "Aspect ratio of the generated image (default: 1:1). Options: 1:1 (square), 3:4 (portrait), 4:3 (landscape), 9:16 (tall), 16:9 (wide)",
+                },
+                return_base64: {
+                  type: "boolean",
+                  description: "DEPRECATED: Return image as base64 data instead of file URI (default: false). This option will be removed in v1.0.0. File save mode with Resources API is strongly recommended.",
+                },
+                include_thumbnail: {
+                  type: "boolean",
+                  description: "Generate thumbnail preview image (128x128, ~30-50 tokens). Defaults to VERTEXAI_IMAGEN_THUMBNAIL environment variable setting. Only applies when return_base64 is false.",
+                },
+                safety_level: {
+                  type: "string",
+                  enum: ["BLOCK_NONE", "BLOCK_ONLY_HIGH", "BLOCK_MEDIUM_AND_ABOVE", "BLOCK_LOW_AND_ABOVE"],
+                  description: "Safety filter level (default: BLOCK_MEDIUM_AND_ABOVE)",
+                },
+                person_generation: {
+                  type: "string",
+                  enum: ["DONT_ALLOW", "ALLOW_ADULT", "ALLOW_ALL"],
+                  description: "Person generation policy (default: DONT_ALLOW)",
+                },
+                language: {
+                  type: "string",
+                  enum: ["auto", "en", "zh", "zh-TW", "hi", "ja", "ko", "pt", "es"],
+                  description: "Language for prompt processing (default: auto)",
+                },
+                negative_prompt: {
+                  type: "string",
+                  description: "Optional negative text prompt to avoid certain traits",
+                },
+                model: {
+                  type: "string",
+                  enum: ["imagen-4.0-ultra-generate-preview-06-06", "imagen-4.0-fast-generate-preview-06-06", "imagen-4.0-generate-preview-06-06", "imagen-3.0-generate-002", "imagen-3.0-fast-generate-001"],
+                  description: "Imagen model to use (default: imagen-3.0-generate-002)",
+                },
+                region: {
+                  type: "string",
+                  description: "Google Cloud region to use (default: from environment variable GOOGLE_REGION or us-central1)",
+                }
+              },
+              required: ["prompt"],
+              description: "Provide at least one of: control_image (with control_type), subject_images (with subject_description and subject_type), or style_image. You can combine multiple reference types for advanced customization.",
+            },
           }
         ],
       };
@@ -420,6 +537,8 @@ It should be run by an MCP client like Claude Desktop.
             return await this.upscaleImage(args as unknown as UpscaleImageArgs);
           case TOOL_GENERATE_AND_UPSCALE_IMAGE:
             return await this.generateAndUpscaleImage(args as unknown as GenerateAndUpscaleImageArgs);
+          case TOOL_CUSTOMIZE_IMAGE:
+            return await this.customizeImage(args as unknown as CustomizeImageArgs);
           case TOOL_LIST_GENERATED_IMAGES:
             return await this.listGeneratedImages(args as unknown as ListGeneratedImagesArgs);
           default:
@@ -749,7 +868,7 @@ It should be run by an MCP client like Claude Desktop.
       "inpaint_removal": "EDIT_MODE_INPAINT_REMOVAL",
       "inpaint_insertion": "EDIT_MODE_INPAINT_INSERTION",
       "bgswap": "EDIT_MODE_BGSWAP",
-      "outpainting": "outpainting"
+      "outpainting": "EDIT_MODE_OUTPAINT"
     } as const;
 
     const apiEditMode = editModeMap[edit_mode as keyof typeof editModeMap] || "edit";
@@ -1269,6 +1388,320 @@ It should be run by an MCP client like Claude Desktop.
       };
     } catch (error) {
       throw new Error(`Failed to list images: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  private async customizeImage(args: CustomizeImageArgs) {
+    const {
+      prompt,
+      control_image_base64,
+      control_image_path,
+      control_type,
+      enable_control_computation = false,
+      subject_images,
+      subject_description,
+      subject_type,
+      style_image_base64,
+      style_image_path,
+      style_description,
+      output_path = "customized_image.png",
+      aspect_ratio = "1:1",
+      return_base64 = false,
+      include_thumbnail,
+      safety_level = "BLOCK_MEDIUM_AND_ABOVE",
+      person_generation = "DONT_ALLOW",
+      language = "auto",
+      negative_prompt,
+      model = "imagen-3.0-generate-002",
+      region
+    } = args;
+
+    if (!prompt || typeof prompt !== 'string') {
+      throw new McpError(ErrorCode.InvalidParams, "prompt is required and must be a string");
+    }
+
+    // Validate that at least one reference image type is provided
+    const hasControl = control_image_base64 || control_image_path;
+    const hasSubject = subject_images && subject_images.length > 0;
+    const hasStyle = style_image_base64 || style_image_path;
+
+    if (!hasControl && !hasSubject && !hasStyle) {
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        "At least one reference image type must be provided (control, subject, or style)"
+      );
+    }
+
+    // Validate control image parameters
+    if (hasControl && !control_type) {
+      throw new McpError(ErrorCode.InvalidParams, "control_type is required when control image is provided");
+    }
+
+    // Validate subject image parameters
+    if (hasSubject) {
+      if (!subject_description) {
+        throw new McpError(ErrorCode.InvalidParams, "subject_description is required when subject_images is provided");
+      }
+      if (!subject_type) {
+        throw new McpError(ErrorCode.InvalidParams, "subject_type is required when subject_images is provided");
+      }
+    }
+
+    // Normalize path BEFORE API call
+    const normalizedPath = return_base64 ? undefined : await normalizeAndValidatePath(output_path);
+
+    if (process.env.DEBUG) {
+      console.error(`[DEBUG] Customizing image with prompt: ${prompt}`);
+      console.error(`[DEBUG] Has control: ${hasControl}, Has subject: ${hasSubject}, Has style: ${hasStyle}`);
+      console.error(`[DEBUG] Model: ${model}`);
+    }
+
+    // Build referenceImages array
+    const referenceImages: ReferenceImage[] = [];
+    let currentRefId = 1;
+
+    // Add control image if provided
+    if (hasControl) {
+      const controlImage = await resolveImageSource({
+        base64Value: control_image_base64,
+        pathValue: control_image_path,
+        label: "Control image",
+        required: true,
+      });
+
+      if (!controlImage) {
+        throw new McpError(ErrorCode.InvalidParams, "Control image could not be resolved");
+      }
+
+      const controlTypeMap = {
+        "face_mesh": "CONTROL_TYPE_FACE_MESH",
+        "canny": "CONTROL_TYPE_CANNY",
+        "scribble": "CONTROL_TYPE_SCRIBBLE"
+      } as const;
+
+      referenceImages.push({
+        referenceType: "REFERENCE_TYPE_CONTROL",
+        referenceId: currentRefId++,
+        referenceImage: {
+          bytesBase64Encoded: controlImage.base64,
+          ...(controlImage.mimeType ? { mimeType: controlImage.mimeType } : {})
+        },
+        controlImageConfig: {
+          controlType: controlTypeMap[control_type as keyof typeof controlTypeMap],
+          enableControlImageComputation: enable_control_computation
+        }
+      });
+    }
+
+    // Add subject images if provided
+    if (hasSubject && subject_images) {
+      const subjectTypeMap = {
+        "person": "SUBJECT_TYPE_PERSON",
+        "animal": "SUBJECT_TYPE_ANIMAL",
+        "product": "SUBJECT_TYPE_PRODUCT",
+        "default": "SUBJECT_TYPE_DEFAULT"
+      } as const;
+
+      const subjectRefId = currentRefId++;
+
+      for (const subjectImg of subject_images) {
+        const resolvedSubject = await resolveImageSource({
+          base64Value: subjectImg.image_base64,
+          pathValue: subjectImg.image_path,
+          label: "Subject image",
+          required: true,
+        });
+
+        if (!resolvedSubject) {
+          throw new McpError(ErrorCode.InvalidParams, "Subject image could not be resolved");
+        }
+
+        referenceImages.push({
+          referenceType: "REFERENCE_TYPE_SUBJECT",
+          referenceId: subjectRefId,  // Same ID for all subject images
+          referenceImage: {
+            bytesBase64Encoded: resolvedSubject.base64,
+            ...(resolvedSubject.mimeType ? { mimeType: resolvedSubject.mimeType } : {})
+          },
+          subjectImageConfig: {
+            subjectDescription: subject_description!,
+            subjectType: subjectTypeMap[subject_type as keyof typeof subjectTypeMap]
+          }
+        });
+      }
+    }
+
+    // Add style image if provided
+    if (hasStyle) {
+      const styleImage = await resolveImageSource({
+        base64Value: style_image_base64,
+        pathValue: style_image_path,
+        label: "Style image",
+        required: true,
+      });
+
+      if (!styleImage) {
+        throw new McpError(ErrorCode.InvalidParams, "Style image could not be resolved");
+      }
+
+      referenceImages.push({
+        referenceType: "REFERENCE_TYPE_STYLE",
+        referenceId: currentRefId++,
+        referenceImage: {
+          bytesBase64Encoded: styleImage.base64,
+          ...(styleImage.mimeType ? { mimeType: styleImage.mimeType } : {})
+        },
+        styleImageConfig: {
+          ...(style_description ? { styleDescription: style_description } : {})
+        }
+      });
+    }
+
+    // Build request
+    const requestBody: GoogleImagenRequest = {
+      instances: [
+        {
+          prompt: prompt,
+          referenceImages: referenceImages
+        }
+      ],
+      parameters: {
+        sampleCount: 1,
+        aspectRatio: aspect_ratio,
+        safetySettings: [
+          {
+            category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+            threshold: safety_level
+          },
+          {
+            category: "HARM_CATEGORY_HATE_SPEECH",
+            threshold: safety_level
+          },
+          {
+            category: "HARM_CATEGORY_HARASSMENT",
+            threshold: safety_level
+          },
+          {
+            category: "HARM_CATEGORY_DANGEROUS_CONTENT",
+            threshold: safety_level
+          }
+        ],
+        personGeneration: person_generation,
+        language: language
+      }
+    };
+
+    if (negative_prompt) {
+      requestBody.parameters!.negativePrompt = negative_prompt;
+    }
+
+    if (process.env.DEBUG) {
+      console.error(`[DEBUG] Reference images count: ${referenceImages.length}`);
+      console.error(`[DEBUG] Request body: ${JSON.stringify(requestBody, null, 2)}`);
+    }
+
+    try {
+      // OAuth2 access token
+      const authClient = await this.auth.getClient();
+      const accessToken = await authClient.getAccessToken();
+
+      if (!accessToken.token) {
+        throw new Error('Failed to obtain access token');
+      }
+
+      // Get project ID and build API URL
+      const projectId = await getProjectId(this.auth);
+      const apiUrl = getImagenApiUrl(projectId, model, region);
+
+      const response = await axios.post<GoogleImagenResponse>(
+        apiUrl,
+        requestBody,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken.token}`,
+          },
+          timeout: 45000,
+        }
+      );
+
+      if (!response.data.predictions || response.data.predictions.length === 0) {
+        throw new Error('No images were generated');
+      }
+
+      const generatedImage = response.data.predictions[0];
+      const imageBuffer = Buffer.from(generatedImage.bytesBase64Encoded, 'base64');
+
+      const infoText = `Image customized successfully!\n\nPrompt: ${prompt}\nAspect ratio: ${aspect_ratio}\nModel: ${model}\nReference types: ${hasControl ? 'control ' : ''}${hasSubject ? 'subject ' : ''}${hasStyle ? 'style' : ''}`;
+
+      if (return_base64) {
+        // Base64モード
+        console.error(`[DEPRECATED WARNING] return_base64=true is deprecated and will be removed in v1.0.0`);
+        console.error(`[WARNING] This mode consumes ~1,500 tokens per image. Use file save mode with Resources API instead.`);
+        console.error(`[INFO] The default mode (return_base64=false) now returns images via file:// URI for optimal performance.`);
+
+        return createImageResponse(
+          imageBuffer,
+          generatedImage.mimeType,
+          undefined,
+          infoText
+        );
+      } else {
+        // File save mode
+        if (!normalizedPath) {
+          throw new Error(
+            'Normalized path is required for file save mode.\n' +
+            'This is an internal error - please report this issue.'
+          );
+        }
+
+        await fs.writeFile(normalizedPath, imageBuffer);
+
+        if (process.env.DEBUG) {
+          console.error(`[DEBUG] Image saved to: ${normalizedPath}`);
+        }
+
+        const displayPath = getDisplayPath(normalizedPath);
+        const fileUri = this.resourceManager.getFileUri(normalizedPath);
+
+        // Determine if thumbnail should be generated
+        const shouldIncludeThumbnail = include_thumbnail !== undefined
+          ? include_thumbnail
+          : (process.env.VERTEXAI_IMAGEN_THUMBNAIL === 'true');
+
+        return await createUriImageResponse(
+          fileUri,
+          generatedImage.mimeType,
+          imageBuffer.length,
+          displayPath,
+          normalizedPath,
+          infoText,
+          shouldIncludeThumbnail
+        );
+      }
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const errorMessage = error.response?.data?.error?.message || error.message;
+        const errorCode = error.response?.status;
+
+        if (process.env.DEBUG) {
+          console.error(`[DEBUG] API Error: ${errorMessage}`);
+          console.error(`[DEBUG] API Status Code: ${errorCode}`);
+        }
+
+        if (errorCode === 401 || errorCode === 403) {
+          throw new McpError(ErrorCode.InvalidRequest, `Google Imagen API authentication error: ${errorMessage}`);
+        }
+        if (errorCode === 400) {
+          throw new McpError(ErrorCode.InvalidParams, `Google Imagen API invalid parameter error: ${errorMessage}`);
+        }
+        if (errorCode && errorCode >= 500) {
+          throw new McpError(ErrorCode.InternalError, `Google Imagen API server error: ${errorMessage}`);
+        }
+
+        throw new McpError(ErrorCode.InternalError, `Google Imagen API error: ${errorMessage}`);
+      }
+      throw error;
     }
   }
 
