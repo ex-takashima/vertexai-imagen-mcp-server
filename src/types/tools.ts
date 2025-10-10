@@ -7,6 +7,7 @@ export interface GenerateImageArgs {
   output_path?: string;
   aspect_ratio?: "1:1" | "3:4" | "4:3" | "9:16" | "16:9";
   return_base64?: boolean;
+  include_thumbnail?: boolean;
   safety_level?: "BLOCK_NONE" | "BLOCK_ONLY_HIGH" | "BLOCK_MEDIUM_AND_ABOVE" | "BLOCK_LOW_AND_ABOVE";
   person_generation?: "DONT_ALLOW" | "ALLOW_ADULT" | "ALLOW_ALL";
   language?: "auto" | "en" | "zh" | "zh-TW" | "hi" | "ja" | "ko" | "pt" | "es";
@@ -19,6 +20,7 @@ export interface UpscaleImageArgs {
   output_path?: string;
   scale_factor?: "2" | "4";
   return_base64?: boolean;
+  include_thumbnail?: boolean;
   region?: string;
 }
 
@@ -28,6 +30,7 @@ export interface GenerateAndUpscaleImageArgs {
   aspect_ratio?: "1:1" | "3:4" | "4:3" | "9:16" | "16:9";
   scale_factor?: "2" | "4";
   return_base64?: boolean;
+  include_thumbnail?: boolean;
   safety_level?: "BLOCK_NONE" | "BLOCK_ONLY_HIGH" | "BLOCK_MEDIUM_AND_ABOVE" | "BLOCK_LOW_AND_ABOVE";
   person_generation?: "DONT_ALLOW" | "ALLOW_ADULT" | "ALLOW_ALL";
   language?: "auto" | "en" | "zh" | "zh-TW" | "hi" | "ja" | "ko" | "pt" | "es";
@@ -52,6 +55,7 @@ export interface EditImageArgs {
   base_steps?: number;
   output_path?: string;
   return_base64?: boolean;
+  include_thumbnail?: boolean;
   guidance_scale?: number;
   sample_count?: number;
   negative_prompt?: string;

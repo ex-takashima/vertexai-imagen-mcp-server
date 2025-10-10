@@ -331,6 +331,8 @@ mask_mode: user_provided、mask_image_path: window_mask.png
 * `prompt`（必須）: テキストプロンプト
 * `output_path`: 保存ファイル名（省略可）
 * `aspect_ratio`: 画像比率（例: 1:1, 16:9）
+* `return_base64`: **非推奨** Base64で返却（デフォルト: false）
+* `include_thumbnail`: サムネイル生成（128x128、約30-50トークン）。未指定時は環境変数 `VERTEXAI_IMAGEN_THUMBNAIL` の設定に従う
 * `safety_level`: 安全性フィルター（BLOCK\_NONE〜BLOCK\_LOW\_AND\_ABOVE）
 * `person_generation`: 人物生成ポリシー（DONT\_ALLOW, ALLOW\_ADULT, ALLOW\_ALL）
 * `language`: プロンプト処理言語（auto, en, ja, ko など、デフォルト: auto）
@@ -346,7 +348,8 @@ mask_mode: user_provided、mask_image_path: window_mask.png
 * `prompt`（必須）: 編集内容の説明
 * `reference_image_base64` / `reference_image_path`: 元画像（どちらか必須）
 * `output_path`: 保存ファイル名（省略可、デフォルト: `edited_image.png`）
-* `return_base64`: Base64で返却する場合は `true`
+* `return_base64`: **非推奨** Base64で返却（デフォルト: false）
+* `include_thumbnail`: サムネイル生成（128x128、約30-50トークン）。未指定時は環境変数 `VERTEXAI_IMAGEN_THUMBNAIL` の設定に従う
 
 #### マスク指定方法（4つの選択肢）
 
@@ -414,8 +417,10 @@ mask_classes: [175, 176]  # 人物関連のクラスID（必須）
 画像を 2 倍 / 4 倍にアップスケールします。
 
 * `input_path`（必須）: 入力ファイルパス
-* `scale_factor`: 倍率（デフォルト: 2）
 * `output_path`: 保存ファイル名（省略可）
+* `scale_factor`: 倍率（デフォルト: 2）
+* `return_base64`: **非推奨** Base64で返却（デフォルト: false）
+* `include_thumbnail`: サムネイル生成（128x128、約30-50トークン）。未指定時は環境変数 `VERTEXAI_IMAGEN_THUMBNAIL` の設定に従う
 
 ---
 
@@ -428,6 +433,8 @@ mask_classes: [175, 176]  # 人物関連のクラスID（必須）
 * `output_path`: 保存ファイル名（省略可）
 * `aspect_ratio`: 画像比率（例: 1:1, 16:9）
 * `scale_factor`: 倍率（デフォルト: 2）
+* `return_base64`: **非推奨** Base64で返却（デフォルト: false）
+* `include_thumbnail`: サムネイル生成（128x128、約30-50トークン）。未指定時は環境変数 `VERTEXAI_IMAGEN_THUMBNAIL` の設定に従う
 * `safety_level`: 安全性フィルター（BLOCK\_NONE〜BLOCK\_LOW\_AND\_ABOVE）
 * `person_generation`: 人物生成ポリシー（DONT\_ALLOW, ALLOW\_ADULT, ALLOW\_ALL）
 * `language`: プロンプト処理言語（auto, en, ja, ko など、デフォルト: auto）
@@ -551,6 +558,7 @@ vertexai-imagen-mcp-server --version
 | `GOOGLE_PROJECT_ID`              | ❌  | プロジェクトID（通常は自動取得）           |
 | `GOOGLE_REGION`                  | ❌  | 利用リージョン（例: asia-northeast1） |
 | `VERTEXAI_IMAGEN_OUTPUT_DIR`     | ❌  | 画像ファイルのデフォルト保存先ディレクトリ（省略時: ~/Downloads/vertexai-imagen-files） |
+| `VERTEXAI_IMAGEN_THUMBNAIL`      | ❌  | サムネイル生成の有効化（`true`で有効、省略時: 無効）。約30-50トークン/画像消費 |
 | `DEBUG`                          | ❌  | "1" を指定するとデバッグログ有効          |
 
 ---
@@ -738,6 +746,85 @@ Model Context Protocolの仕様に準拠し、以下の機能を提供：
 - 現在は互換性のため維持されていますが、使用は推奨されません
 - Resources API を使用したfile:// URI配信が標準となります
 - 既存のBase64モード利用者は、ファイル保存モードへの移行を推奨
+
+### 🖼️ サムネイル機能（オプション）
+
+**✨ 新機能**: 画像プレビュー用のサムネイル自動生成に対応しました。
+
+#### 機能概要
+
+ファイル保存モードで画像を生成する際、オプションで小さなサムネイル画像を生成し、即座にプレビュー表示できます。
+
+#### 有効化方法
+
+**方法1: 環境変数で全体的に有効化（推奨）**
+
+```json
+{
+  "mcpServers": {
+    "google-imagen": {
+      "command": "vertexai-imagen-mcp-server",
+      "env": {
+        "GOOGLE_APPLICATION_CREDENTIALS": "/path/to/key.json",
+        "VERTEXAI_IMAGEN_THUMBNAIL": "true"
+      }
+    }
+  }
+}
+```
+
+**方法2: ツール呼び出し時に個別指定**
+
+```text
+# サムネイル有効で生成
+include_thumbnail: true
+
+# サムネイル無効で生成
+include_thumbnail: false
+
+# 未指定の場合は環境変数の設定に従う
+```
+
+#### トークン消費
+
+| モード | トークン消費 | プレビュー表示 | 推奨度 |
+|--------|-------------|--------------|--------|
+| **file:// URI のみ（デフォルト）** | ~100トークン | ❌ なし | ⭐⭐⭐⭐⭐ **推奨** |
+| file:// URI + サムネイル | ~130-150トークン | ✅ 即座に表示 | ⭐⭐⭐⭐ |
+| Base64フル画像（非推奨） | ~1,500トークン | ✅ フル画像 | ⭐ |
+
+#### サムネイル仕様
+
+- **サイズ**: 最大128×128ピクセル（アスペクト比維持）
+- **品質**: JPEG品質60
+- **追加トークン消費**: 約30-50トークン/画像
+- **処理時間**: 約5-30ms（画像サイズによる）
+
+#### 技術的詳細
+
+- [Sharp](https://sharp.pixelplumbing.com/) ライブラリによる高速・高品質な画像処理
+- アスペクト比を維持したリサイズ
+- 元画像より大きくしない制御
+- サムネイル生成失敗時も本処理は継続（エラー非表示）
+
+#### 使用例
+
+```text
+# 環境変数で有効化後
+「美しい夕日の風景を生成してください」
+
+→ file:// URI で高解像度画像を提供
+→ 同時に128×128のサムネイルも表示（即座にプレビュー可能）
+```
+
+#### 注意事項
+
+⚠️ **Claude Desktopのトークン制限**: 1回の会話でメッセージ最大文字数に達する場合があります。その場合は以下のいずれかの対応を推奨：
+- サムネイルを無効化（`VERTEXAI_IMAGEN_THUMBNAIL` を設定しない、またはデフォルトのまま）
+- 新しいチャットを開始
+- file:// URI経由でフル画像にアクセス（MCP Resources API経由）
+
+💡 **推奨**: 通常の使用では**サムネイル無効（デフォルト）**で十分です。file:// URIでフル画像に即座にアクセスできます。
 
 ---
 

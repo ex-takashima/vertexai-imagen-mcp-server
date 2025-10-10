@@ -23,10 +23,12 @@
     "@modelcontextprotocol/sdk": "^0.6.0",
     "axios": "^1.6.0",
     "google-auth-library": "^10.1.0",
-    "googleapis": "^153.0.0"
+    "googleapis": "^153.0.0",
+    "sharp": "^0.34.4"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
+    "@types/sharp": "^0.31.1",
     "tsx": "^4.0.0",
     "typescript": "^5.0.0",
     "vitest": "^1.0.0"

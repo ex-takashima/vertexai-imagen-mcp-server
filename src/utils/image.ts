@@ -202,15 +202,19 @@ export function createImageResponse(
  * @param mimeType MIMEタイプ
  * @param fileSize ファイルサイズ（バイト）
  * @param filePath 保存先の表示パス
+ * @param absoluteFilePath 実際のファイルの絶対パス（サムネイル生成用）
  * @param additionalInfo 追加情報テキスト（省略可）
+ * @param includeThumbnail サムネイルを含めるか（デフォルト: true）
  * @returns MCPレスポンス形式
  */
-export function createUriImageResponse(
+export async function createUriImageResponse(
   uri: string,
   mimeType: string,
   fileSize: number,
   filePath: string,
-  additionalInfo?: string
+  absoluteFilePath: string,
+  additionalInfo?: string,
+  includeThumbnail: boolean = true
 ) {
   let responseText = additionalInfo || '';
   responseText += `\nSaved to: ${filePath}`;
@@ -219,20 +223,59 @@ export function createUriImageResponse(
   responseText += `\n\n📎 Image URI: ${uri}`;
   responseText += `\nℹ️  The image can be accessed via MCP Resources API.`;
 
-  return {
-    content: [
-      {
-        type: "text",
-        text: responseText
-      },
-      {
-        type: "resource",
-        resource: {
-          uri: uri,
-          mimeType: mimeType,
-          text: `Image resource: ${path.basename(uri)}`
-        }
+  const content: any[] = [
+    {
+      type: "text",
+      text: responseText
+    },
+    {
+      type: "resource",
+      resource: {
+        uri: uri,
+        mimeType: mimeType,
+        text: `Image resource: ${path.basename(uri)}`
       }
-    ],
-  };
+    }
+  ];
+
+  // サムネイル生成（オプション）
+  // 環境変数で有効化が必要（デフォルト: 無効）
+  const thumbnailEnabled = process.env.VERTEXAI_IMAGEN_THUMBNAIL === 'true' && includeThumbnail;
+
+  if (thumbnailEnabled) {
+    try {
+      if (process.env.DEBUG) {
+        console.error(`[DEBUG] Thumbnail generation enabled, processing: ${absoluteFilePath}`);
+      }
+
+      const { generateThumbnailFromFile } = await import('./thumbnail.js');
+      const thumbnailDataUri = await generateThumbnailFromFile(absoluteFilePath);
+
+      content.push({
+        type: "image",
+        data: thumbnailDataUri,
+        mimeType: "image/jpeg",
+        annotations: {
+          audience: ["user"] as const,  // LLMコンテキストから除外
+          priority: 0.5  // 優先度低（サムネイルのため）
+        }
+      });
+
+      if (process.env.DEBUG) {
+        const thumbnailSize = Math.round(thumbnailDataUri.length * 0.75); // Base64デコード後のサイズ概算
+        console.error(`[DEBUG] Thumbnail generated successfully: ~${thumbnailSize} bytes`);
+      }
+    } catch (error) {
+      // サムネイル生成失敗はエラーとせず、警告のみ
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`[WARNING] Failed to generate thumbnail for ${absoluteFilePath}: ${errorMessage}`);
+      if (process.env.DEBUG && error instanceof Error) {
+        console.error(`[DEBUG] Thumbnail error stack: ${error.stack}`);
+      }
+    }
+  } else if (process.env.DEBUG) {
+    console.error(`[DEBUG] Thumbnail generation disabled (VERTEXAI_IMAGEN_THUMBNAIL=${process.env.VERTEXAI_IMAGEN_THUMBNAIL})`);
+  }
+
+  return { content };
 }

@@ -112,6 +112,9 @@ Environment Variables:
   GOOGLE_IMAGEN_MODEL             Model name (optional, default: imagen-3.0-generate-002)
   VERTEXAI_IMAGEN_OUTPUT_DIR      Default output directory for generated images
                                   (optional, default: ~/Downloads/vertexai-imagen-files)
+  VERTEXAI_IMAGEN_THUMBNAIL       Enable thumbnail generation for image previews
+                                  (optional, default: false, set to 'true' to enable)
+                                  Note: Thumbnails consume ~30-50 tokens per image
   DEBUG                           Enable debug logging
 
 File Path Handling:
@@ -166,6 +169,10 @@ It should be run by an MCP client like Claude Desktop.
                 return_base64: {
                   type: "boolean",
                   description: "DEPRECATED: Return image as base64 data instead of file URI (default: false). This option will be removed in v1.0.0. File save mode with Resources API is strongly recommended.",
+                },
+                include_thumbnail: {
+                  type: "boolean",
+                  description: "Generate thumbnail preview image (128x128, ~30-50 tokens). Defaults to VERTEXAI_IMAGEN_THUMBNAIL environment variable setting. Only applies when return_base64 is false.",
                 },
                 safety_level: {
                   type: "string",
@@ -256,6 +263,10 @@ It should be run by an MCP client like Claude Desktop.
                   type: "boolean",
                   description: "DEPRECATED: Return edited image as base64 data instead of file URI (default: false). This option will be removed in v1.0.0. File save mode with Resources API is strongly recommended.",
                 },
+                include_thumbnail: {
+                  type: "boolean",
+                  description: "Generate thumbnail preview image (128x128, ~30-50 tokens). Defaults to VERTEXAI_IMAGEN_THUMBNAIL environment variable setting. Only applies when return_base64 is false.",
+                },
                 guidance_scale: {
                   type: "number",
                   description: "Optional guidance scale (prompt strength), typically 0-30",
@@ -307,6 +318,10 @@ It should be run by an MCP client like Claude Desktop.
                   type: "boolean",
                   description: "DEPRECATED: Return image as base64 data instead of file URI (default: false). This option will be removed in v1.0.0. File save mode with Resources API is strongly recommended.",
                 },
+                include_thumbnail: {
+                  type: "boolean",
+                  description: "Generate thumbnail preview image (128x128, ~30-50 tokens). Defaults to VERTEXAI_IMAGEN_THUMBNAIL environment variable setting. Only applies when return_base64 is false.",
+                },
                 region: {
                   type: "string",
                   description: "Google Cloud region to use (default: from environment variable GOOGLE_REGION or us-central1)",
@@ -342,6 +357,10 @@ It should be run by an MCP client like Claude Desktop.
                 return_base64: {
                   type: "boolean",
                   description: "DEPRECATED: Return image as base64 data instead of file URI (default: false). This option will be removed in v1.0.0. File save mode with Resources API is strongly recommended.",
+                },
+                include_thumbnail: {
+                  type: "boolean",
+                  description: "Generate thumbnail preview image (128x128, ~30-50 tokens). Defaults to VERTEXAI_IMAGEN_THUMBNAIL environment variable setting. Only applies when return_base64 is false.",
                 },
                 safety_level: {
                   type: "string",
@@ -427,6 +446,7 @@ It should be run by an MCP client like Claude Desktop.
       output_path = "generated_image.png",
       aspect_ratio = "1:1",
       return_base64 = false,
+      include_thumbnail,
       safety_level = "BLOCK_MEDIUM_AND_ABOVE",
       person_generation = "DONT_ALLOW",
       language = "auto",
@@ -552,12 +572,19 @@ It should be run by an MCP client like Claude Desktop.
         const displayPath = getDisplayPath(normalizedPath);
         const fileUri = this.resourceManager.getFileUri(normalizedPath);
 
-        return createUriImageResponse(
+        // Determine if thumbnail should be generated
+        const shouldIncludeThumbnail = include_thumbnail !== undefined
+          ? include_thumbnail
+          : (process.env.VERTEXAI_IMAGEN_THUMBNAIL === 'true');
+
+        return await createUriImageResponse(
           fileUri,
           generatedImage.mimeType,
           imageBuffer.length,
           displayPath,
-          `Image generated successfully!\n\nPrompt: ${prompt}\nAspect ratio: ${aspect_ratio}\nModel: ${model}`
+          normalizedPath,
+          `Image generated successfully!\n\nPrompt: ${prompt}\nAspect ratio: ${aspect_ratio}\nModel: ${model}`,
+          shouldIncludeThumbnail
         );
       }
     } catch (error) {
@@ -600,6 +627,7 @@ It should be run by an MCP client like Claude Desktop.
       base_steps,
       output_path = "edited_image.png",
       return_base64 = false,
+      include_thumbnail,
       guidance_scale,
       sample_count = 1,
       negative_prompt,
@@ -848,12 +876,19 @@ It should be run by an MCP client like Claude Desktop.
       const displayPath = getDisplayPath(normalizedPath);
       const fileUri = this.resourceManager.getFileUri(normalizedPath);
 
-      return createUriImageResponse(
+      // Determine if thumbnail should be generated
+      const shouldIncludeThumbnail = include_thumbnail !== undefined
+        ? include_thumbnail
+        : (process.env.VERTEXAI_IMAGEN_THUMBNAIL === 'true');
+
+      return await createUriImageResponse(
         fileUri,
         editedImage.mimeType,
         imageBuffer.length,
         displayPath,
-        infoText
+        normalizedPath,
+        infoText,
+        shouldIncludeThumbnail
       );
     } catch (error) {
       if (axios.isAxiosError(error)) {
@@ -887,6 +922,7 @@ It should be run by an MCP client like Claude Desktop.
       output_path,
       scale_factor = "2",
       return_base64 = false,
+      include_thumbnail,
       region
     } = args;
 
@@ -997,12 +1033,19 @@ It should be run by an MCP client like Claude Desktop.
         const displayPath = getDisplayPath(normalizedPath);
         const fileUri = this.resourceManager.getFileUri(normalizedPath);
 
-        return createUriImageResponse(
+        // Determine if thumbnail should be generated
+        const shouldIncludeThumbnail = include_thumbnail !== undefined
+          ? include_thumbnail
+          : (process.env.VERTEXAI_IMAGEN_THUMBNAIL === 'true');
+
+        return await createUriImageResponse(
           fileUri,
           upscaledImage.mimeType,
           imageBuffer.length,
           displayPath,
-          `Image upscaled successfully!\n\nInput: ${input_path}\nScale factor: ${scale_factor}`
+          normalizedPath,
+          `Image upscaled successfully!\n\nInput: ${input_path}\nScale factor: ${scale_factor}`,
+          shouldIncludeThumbnail
         );
       }
     } catch (error) {
@@ -1041,6 +1084,7 @@ It should be run by an MCP client like Claude Desktop.
       aspect_ratio = "1:1",
       scale_factor = "2",
       return_base64 = false,
+      include_thumbnail,
       safety_level = "BLOCK_MEDIUM_AND_ABOVE",
       person_generation = "DONT_ALLOW",
       language = "auto",
@@ -1134,12 +1178,19 @@ It should be run by an MCP client like Claude Desktop.
         const fileSize = upscaleResult.content[0]?.text?.match(/File size: (\d+) bytes/)?.[1];
         const size = fileSize ? parseInt(fileSize, 10) : 0;
 
-        return createUriImageResponse(
+        // Determine if thumbnail should be generated
+        const shouldIncludeThumbnail = include_thumbnail !== undefined
+          ? include_thumbnail
+          : (process.env.VERTEXAI_IMAGEN_THUMBNAIL === 'true');
+
+        return await createUriImageResponse(
           fileUri,
           mimeType,
           size,
           displayPath,
-          `Image generated and upscaled successfully!\n\nPrompt: ${prompt}\nAspect ratio: ${aspect_ratio}\nModel: ${model}\nScale factor: ${scale_factor}\n\nProcess completed in 2 steps:\n1. Generated original image\n2. Upscaled to ${scale_factor}x resolution`
+          normalizedPath,
+          `Image generated and upscaled successfully!\n\nPrompt: ${prompt}\nAspect ratio: ${aspect_ratio}\nModel: ${model}\nScale factor: ${scale_factor}\n\nProcess completed in 2 steps:\n1. Generated original image\n2. Upscaled to ${scale_factor}x resolution`,
+          shouldIncludeThumbnail
         );
       }
     } catch (error) {
