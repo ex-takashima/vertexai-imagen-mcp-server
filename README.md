@@ -1,6 +1,6 @@
 # Vertex AI Imagen MCP Server
 
-[![npm version](https://badge.fury.io/js/@dondonudonjp%2Fvertexai-imagen-mcp-server.svg)](https://badge.fury.io/js/@dondonudonjp%2Fvertexai-imagen-mcp-server)
+[![npm version](https://img.shields.io/npm/v/@dondonudonjp/vertexai-imagen-mcp-server.svg)](https://www.npmjs.com/package/@dondonudonjp/vertexai-imagen-mcp-server)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![npm downloads](https://img.shields.io/npm/dm/@dondonudonjp/vertexai-imagen-mcp-server.svg)](https://www.npmjs.com/package/@dondonudonjp/vertexai-imagen-mcp-server)
 
