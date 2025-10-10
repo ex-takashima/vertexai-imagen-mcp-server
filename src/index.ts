@@ -14,7 +14,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { GoogleAuth } from 'google-auth-library';
 import { createRequire } from 'module';
-import { normalizeAndValidatePath, getDisplayPath, getDefaultOutputDirectory } from './utils/path.js';
+import { normalizeAndValidatePath, getDisplayPath, getDefaultOutputDirectory, resolveInputPath } from './utils/path.js';
 import { getProjectId, getImagenApiUrl, getUpscaleApiUrl } from './utils/auth.js';
 import { ImageResourceManager } from './utils/resources.js';
 import {
@@ -230,8 +230,8 @@ It should be run by an MCP client like Claude Desktop.
                 },
                 mask_mode: {
                   type: "string",
-                  enum: ["background", "foreground", "semantic", "user_provided"],
-                  description: "Mask generation mode: 'background' (auto-detect background), 'foreground' (auto-detect foreground), 'semantic' (use semantic classes), 'user_provided' (use provided mask image). Default: user_provided",
+                  enum: ["background", "foreground", "semantic", "user_provided", "mask_free"],
+                  description: "Mask generation mode: 'background' (auto-detect background), 'foreground' (auto-detect foreground), 'semantic' (use semantic classes), 'user_provided' (use provided mask image), 'mask_free' (no mask, edit based on prompt only). If not specified, defaults to mask-free editing.",
                 },
                 mask_classes: {
                   type: "array",
@@ -246,8 +246,8 @@ It should be run by an MCP client like Claude Desktop.
                 },
                 edit_mode: {
                   type: "string",
-                  enum: ["inpaint_removal", "inpaint_insertion", "bgswap"],
-                  description: "Edit operation mode: 'inpaint_removal' (remove content), 'inpaint_insertion' (add/modify content), 'bgswap' (change background). Default: inpaint_insertion",
+                  enum: ["inpaint_removal", "inpaint_insertion", "bgswap", "outpainting"],
+                  description: "Edit operation mode: 'inpaint_removal' (remove content), 'inpaint_insertion' (add/modify content), 'bgswap' (change background), 'outpainting' (expand image beyond original canvas). Default: inpaint_insertion",
                 },
                 base_steps: {
                   type: "integer",
@@ -292,7 +292,7 @@ It should be run by an MCP client like Claude Desktop.
                 }
               },
               required: ["prompt"],
-              description: "Provide either reference_image_base64 or reference_image_path for the source image. For masking: use mask_mode='user_provided' with mask_image_base64/mask_image_path, or use automatic masking with mask_mode='background'/'foreground'/'semantic'. For semantic masking, also specify mask_classes array.",
+              description: "Provide either reference_image_base64 or reference_image_path for the source image. For masking: use mask_mode='user_provided' with mask_image_base64/mask_image_path, use automatic masking with mask_mode='background'/'foreground'/'semantic', or omit mask_mode for mask-free editing (prompt-based editing). For semantic masking, also specify mask_classes array.",
             },
           },
           {
@@ -620,7 +620,7 @@ It should be run by an MCP client like Claude Desktop.
       reference_image_path,
       mask_image_base64,
       mask_image_path,
-      mask_mode = "user_provided",
+      mask_mode,
       mask_classes,
       mask_dilation = 0.01,
       edit_mode = "inpaint_insertion",
@@ -658,11 +658,11 @@ It should be run by an MCP client like Claude Desktop.
       }
     }
 
-    if ((mask_image_base64 || mask_image_path) && mask_mode !== "user_provided") {
+    if ((mask_image_base64 || mask_image_path) && mask_mode !== "user_provided" && mask_mode !== undefined) {
       throw new McpError(ErrorCode.InvalidParams, "mask_image_base64/mask_image_path can only be used when mask_mode is 'user_provided'");
     }
 
-    if (mask_dilation < 0 || mask_dilation > 1) {
+    if (mask_mode && mask_mode !== "mask_free" && (mask_dilation < 0 || mask_dilation > 1)) {
       throw new McpError(ErrorCode.InvalidParams, "mask_dilation must be between 0 and 1");
     }
 
@@ -716,7 +716,7 @@ It should be run by an MCP client like Claude Desktop.
       // Automatic mask generation
       const maskModeMap = {
         "background": "MASK_MODE_BACKGROUND",
-        "foreground": "MASK_MODE_FOREGROUND", 
+        "foreground": "MASK_MODE_FOREGROUND",
         "semantic": "MASK_MODE_SEMANTIC"
       } as const;
 
@@ -736,13 +736,20 @@ It should be run by an MCP client like Claude Desktop.
       }
 
       referenceImages.push(maskConfig);
+    } else if (!mask_mode || mask_mode === "mask_free") {
+      // Mask-free editing: no mask is added
+      // Only the base image reference is used (already added above)
+      if (process.env.DEBUG) {
+        console.error(`[DEBUG] Mask-free editing mode - no mask will be applied`);
+      }
     }
 
     // Map edit mode to API format
     const editModeMap = {
       "inpaint_removal": "EDIT_MODE_INPAINT_REMOVAL",
       "inpaint_insertion": "EDIT_MODE_INPAINT_INSERTION",
-      "bgswap": "EDIT_MODE_BGSWAP"
+      "bgswap": "EDIT_MODE_BGSWAP",
+      "outpainting": "outpainting"
     } as const;
 
     const apiEditMode = editModeMap[edit_mode as keyof typeof editModeMap] || "edit";
@@ -937,8 +944,15 @@ It should be run by an MCP client like Claude Desktop.
     }
 
     try {
+      // 入力画像ファイルパスを解決（相対パスの場合はVERTEXAI_IMAGEN_OUTPUT_DIRから解決）
+      const resolvedInputPath = resolveInputPath(input_path);
+
+      if (process.env.DEBUG) {
+        console.error(`[DEBUG] Resolved input path: ${resolvedInputPath}`);
+      }
+
       // 入力画像ファイルを読み込み
-      const inputImageBuffer = await fs.readFile(input_path);
+      const inputImageBuffer = await fs.readFile(resolvedInputPath);
       const inputImageBase64 = inputImageBuffer.toString('base64');
 
       // 出力パスの設定

@@ -76,7 +76,7 @@ export interface GoogleImagenEditRequest {
     referenceImages: ReferenceImage[];
   }>;
   parameters: {
-    editMode: "EDIT_MODE_INPAINT_REMOVAL" | "EDIT_MODE_INPAINT_INSERTION" | "EDIT_MODE_BGSWAP" | "edit";
+    editMode: "EDIT_MODE_INPAINT_REMOVAL" | "EDIT_MODE_INPAINT_INSERTION" | "EDIT_MODE_BGSWAP" | "outpainting" | "edit";
     editConfig?: {
       baseSteps?: number;
     };

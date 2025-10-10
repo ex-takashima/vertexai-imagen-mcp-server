@@ -5,6 +5,7 @@
 import * as path from 'path';
 import * as fs from 'fs/promises';
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
+import { resolveInputPath } from './path.js';
 
 /**
  * Base64文字列を正規化
@@ -108,7 +109,7 @@ export async function resolveImageSource({
   }
 
   if (pathValue && typeof pathValue === 'string' && pathValue.trim().length > 0) {
-    const fullPath = path.resolve(pathValue);
+    const fullPath = resolveInputPath(pathValue);
     try {
       const buffer = await fs.readFile(fullPath);
       return {

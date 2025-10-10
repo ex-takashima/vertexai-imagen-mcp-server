@@ -48,10 +48,10 @@ export interface EditImageArgs {
   reference_image_path?: string;
   mask_image_base64?: string;
   mask_image_path?: string;
-  mask_mode?: "background" | "foreground" | "semantic" | "user_provided";
+  mask_mode?: "background" | "foreground" | "semantic" | "user_provided" | "mask_free";
   mask_classes?: number[];
   mask_dilation?: number;
-  edit_mode?: "inpaint_removal" | "inpaint_insertion" | "bgswap";
+  edit_mode?: "inpaint_removal" | "inpaint_insertion" | "bgswap" | "outpainting";
   base_steps?: number;
   output_path?: string;
   return_base64?: boolean;

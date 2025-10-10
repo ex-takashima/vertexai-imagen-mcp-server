@@ -14,8 +14,9 @@ Vertex AI の Imagen API を使用して画像を生成・編集できる MCP（
 
 - 🎨 **画像生成**：テキストから高品質な画像を生成
 - ✂️ **高度な画像編集**：AIマスク生成、セマンティック編集、背景置換対応
-- 🎭 **4つのマスクモード**：手動マスク、背景自動検出、前景自動検出、セマンティック分割
-- 🔄 **多様な編集モード**：インペイント除去、インペイント挿入、背景置換
+- ✨ **マスクなし編集（NEW!）**：プロンプトのみで簡単に画像編集
+- 🎭 **5つのマスクモード**：マスクフリー、手動マスク、背景自動検出、前景自動検出、セマンティック分割
+- 🔄 **多様な編集モード**：インペイント除去、インペイント挿入、背景置換、アウトペインティング
 - 📐 **アスペクト比の指定**：1:1, 3:4, 4:3, 9:16, 16:9 に対応
 - 🔍 **アップスケーリング**：画像を 2 倍または 4 倍に高品質拡大
 - ⚡ **統合処理**：生成と拡大を一括実行
@@ -287,12 +288,19 @@ mask_mode は background、edit_mode は bgswap でお願いします。
 ### 🧹 例6：オブジェクト除去（インペイント除去）
 
 ```text
-この風景写真から不要なオブジェクト（人物や看板など）を自然に除去してください。
-前景を自動検出してマスクを作成し、inpaint_removal モードで処理してください。
-base_steps は 15 で、保存先は clean_landscape.png にしてください。
+[元画像のファイルパスを記述]
+このリビングの写真で、ソファの上に置かれたクッションを自然に除去してください。
+ソファ本体や背景の家具は残します。
+mask_mode は foreground、edit_mode は inpaint_removal に設定。
+base_steps は 16、guidance_scale は 10 にしてください。
+保存先は clean_sofa.png にしてください。
 ```
 
-![例6](./docs/images/clean_landscape.png)
+![例6](./docs/images/upscaled_2x_sofa_cushion_1.png)
+元画像
+
+![例6](./docs/images/clean_sofa.png)
+生成画像
 
 ---
 
@@ -301,7 +309,7 @@ base_steps は 15 で、保存先は clean_landscape.png にしてください�
 ```text
 この人物の服装を変更してください。人物部分のみを対象に、
 カジュアルな服装からフォーマルなビジネススーツに変更してください。
-mask_mode: semantic、mask_classes: [175, 176]、edit_mode: inpaint_insertion
+mask_mode: semantic、mask_classes: [125]、edit_mode: inpaint_insertion
 保存先は formal_outfit.png にしてください。
 ```
 
@@ -320,6 +328,22 @@ mask_mode: user_provided、mask_image_path: window_mask.png
 ```
 
 ![例8](./docs/images/sakura_view.png)
+
+---
+
+### ✨ 例9：マスクなし編集（Mask-Free）⭐ **NEW!**
+
+```text
+[元画像のファイルパスを記述]
+この猫の写真を、同じ構図で犬の写真に変更してください。
+背景はそのままで、猫を犬に置き換えるイメージです。
+保存先は dog_transformed.png にしてください。
+```
+
+**特徴:**
+- `mask_mode`を指定せず、プロンプトのみで編集
+- AIが自動的に猫の部分を認識して犬に変換
+- 最もシンプルで柔軟な編集方法
 
 ---
 
@@ -355,7 +379,18 @@ mask_mode: user_provided、mask_image_path: window_mask.png
 * `return_base64`: **非推奨** Base64で返却（デフォルト: false）
 * `include_thumbnail`: サムネイル生成（128x128、約30-50トークン）。未指定時は環境変数 `VERTEXAI_IMAGEN_THUMBNAIL` の設定に従う
 
-#### マスク指定方法（4つの選択肢）
+#### マスク指定方法（5つの選択肢）
+
+##### 🔹 マスクなし編集（Mask-Free）⭐ **NEW!**
+```text
+mask_mode: "mask_free"  # または mask_mode を未指定
+# プロンプトのみで編集領域と内容をAIが自動判断
+```
+**特徴:**
+- マスクを一切指定しない最もシンプルな編集方法
+- プロンプトで「猫を犬に変える」「背景を森に変える」などと指示するだけで編集可能
+- AIが画像全体を解釈して自動的に適切な領域を編集
+- 手軽さと柔軟性を両立
 
 ##### 🔹 手動マスク（従来の方法）
 ```text
@@ -368,7 +403,7 @@ mask_image_base64 / mask_image_path: 白=編集対象、黒=保持領域
 mask_mode: "background"  # 背景を自動検出してマスク生成
 ```
 
-##### 🔹 前景自動マスク  
+##### 🔹 前景自動マスク
 ```text
 mask_mode: "foreground"  # 前景（主要被写体）を自動検出
 ```
@@ -376,7 +411,7 @@ mask_mode: "foreground"  # 前景（主要被写体）を自動検出
 ##### 🔹 セマンティックマスク
 ```text
 mask_mode: "semantic"
-mask_classes: [175, 176]  # 人物関連のクラスID（必須）
+mask_classes: [125]  # 人物のクラスID（必須）
 ```
 
 #### 編集モード
@@ -384,6 +419,7 @@ mask_classes: [175, 176]  # 人物関連のクラスID（必須）
   - `"inpaint_insertion"`: コンテンツの追加・修正（**デフォルト**）
   - `"inpaint_removal"`: コンテンツの除去
   - `"bgswap"`: 背景置換
+  - `"outpainting"`: キャンバス拡張（画像を元のサイズより大きく拡張）
 
 #### 高度なパラメータ
 * `mask_dilation`: マスク境界の拡張量（0.01-0.1、デフォルト: 0.01）
@@ -397,9 +433,9 @@ mask_classes: [175, 176]  # 人物関連のクラスID（必須）
 
 | パラメータ | 型 | デフォルト | 説明 | 使用例 |
 |-----------|---|----------|------|-------|
-| `mask_mode` | string | `user_provided` | マスク生成方法 | `"background"`, `"foreground"`, `"semantic"` |
-| `edit_mode` | string | `inpaint_insertion` | 編集操作タイプ | `"inpaint_removal"`, `"bgswap"` |
-| `mask_classes` | number[] | - | セマンティッククラスID | `[175, 176]` (人物関連) |
+| `mask_mode` | string | - (mask-free) | マスク生成方法 | `"mask_free"` (未指定), `"background"`, `"foreground"`, `"semantic"`, `"user_provided"` |
+| `edit_mode` | string | `inpaint_insertion` | 編集操作タイプ | `"inpaint_removal"`, `"inpaint_insertion"`, `"bgswap"`, `"outpainting"` |
+| `mask_classes` | number[] | - | セマンティッククラスID | `[125]` (人物), `[7, 8]` (猫と犬), `[175, 176]` (自転車と車) |
 | `mask_dilation` | number | `0.01` | マスク境界拡張率 | `0.02` (画像幅の2%) |
 | `base_steps` | number | - | サンプリングステップ数 | `15` (除去), `25` (挿入) |
 | `guidance_scale` | number | - | プロンプト強度 | `10-20` (標準), `5-9` (弱), `21+` (強) |
@@ -409,6 +445,7 @@ mask_classes: [175, 176]  # 人物関連のクラスID（必須）
 
 | 用途 | mask_mode | edit_mode | base_steps | mask_dilation |
 |------|----------|-----------|------------|---------------|
+| **プロンプトベース簡易編集** ⭐ | **未指定 or `mask_free`** | **任意** | **15-25** | **-** |
 | 背景変更 | `background` | `bgswap` | 20-25 | 0.01-0.02 |
 | オブジェクト除去 | `foreground` | `inpaint_removal` | 12-18 | 0.01 |
 | 人物服装変更 | `semantic` | `inpaint_insertion` | 25-30 | 0.02 |
@@ -481,19 +518,20 @@ mask_classes: [175, 176]  # 人物関連のクラスID（必須）
 | `imagegeneration@005` | Imagen 2.5 系旧バージョン（互換目的） | ❌ 非推奨 |
 | `imagegeneration@002` | Imagen 2 系旧バージョン（互換目的） | ❌ 非推奨 |
 
-### 🏷️ セマンティックマスク対応クラスID（一部抜粋）
+### 🏷️ セマンティックマスク対応クラスID（公式ドキュメント準拠）
 
 画像編集で`mask_mode: "semantic"`を使用する際の代表的なクラスIDです：
 
 | カテゴリ | クラスID | 説明 | 使用例 |
 |----------|----------|------|-------|
-| **人物** | `[175, 176]` | 人、人物全体 | 服装変更、人物除去 |
-| **動物** | `[17, 18, 19, 20]` | 犬、猫、鳥、馬など | ペット関連編集 |
-| **乗り物** | `[3, 6, 8]` | 車、バス、トラック | 車両除去・変更 |
-| **建物** | `[1, 2]` | 建物、橋 | 建築物編集 |
-| **植物** | `[15, 62]` | 木、花 | 植物・自然編集 |
+| **人物** | `125` | person（人物） | 服装変更、人物除去 |
+| **動物** | `6`, `7`, `8`, `9` | bird, cat, dog, horse | ペット関連編集 |
+| **乗り物** | `175`, `176`, `179`, `180`, `182` | bicycle, car, motorcycle, bus, truck | 車両除去・変更 |
+| **建物** | `35` | building | 建築物編集 |
 
-> 💡 **ヒント**: より詳細なクラスID一覧はGoogle Cloud Vision APIのラベル検出ドキュメントを参照してください。
+**⚠️ 重要**: 複数のオブジェクトを対象にする場合は配列で指定（例: `[7, 8]` で猫と犬）
+
+> 💡 **ヒント**: 完全なクラスID一覧（0-193）は[Vertex AI Imagen API公式ドキュメント](https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/imagen-api-edit)を参照してください。
 
 ---
 
@@ -537,6 +575,7 @@ DEBUG=1 npm run dev # デバッグモード（詳細ログあり）
 
 | 症状 | 原因 | 解決策 |
 |------|------|-------|
+| **"The generated mask is of low quality"** | **画像内容による自動マスク生成失敗** | **❶別の`mask_mode`を試す（background ⇔ foreground）<br>❷`mask_dilation`を調整（0.02-0.05に拡大）<br>❸手動マスク画像を用意し`mask_mode: "user_provided"`で指定<br>❹異なる画像や構図で再試行** |
 | マスクが期待通りに動作しない | 自動マスク生成の精度問題 | `mask_dilation`を調整（0.01-0.05）、または手動マスクに変更 |
 | セマンティックマスクエラー | `mask_classes`未指定 | `mask_classes: [175, 176]`など適切なクラスIDを指定 |
 | 編集結果が不自然 | `base_steps`が不適切 | 除去: 12-18、挿入: 20-35、背景置換: 20-25 に調整 |
@@ -545,6 +584,7 @@ DEBUG=1 npm run dev # デバッグモード（詳細ログあり）
 | パラメータ組み合わせエラー | 互換性のない設定 | `mask_mode: "semantic"`には`mask_classes`必須など確認 |
 | 処理時間が長い | `base_steps`が高すぎる | 用途に応じて適切な値に調整（上記推奨表を参照） |
 | マスク画像が読み込めない | ファイル形式・パスの問題 | PNG形式推奨、パスの確認、ファイルサイズ10MB以下 |
+| **入力画像が見つからない（相対パス）** | **相対パスがデフォルトディレクトリから解決されていない** | **絶対パスを指定するか、`VERTEXAI_IMAGEN_OUTPUT_DIR`配下に画像を配置** |
 
 ---
 
@@ -646,6 +686,48 @@ output_path: "landscape.png"
 ```
 
 この機能により、既存の画像ファイルが誤って上書きされるリスクがなくなります。
+
+### 📥 入力画像パスの扱い（edit_image / upscale_image）
+
+**v0.5.0から改善**: 入力画像パス（`reference_image_path`, `mask_image_path`, `input_path`）も出力パスと同様の解決方法を採用しました。
+
+#### パス解決ルール
+
+```text
+# ✅ 相対パス指定（推奨）
+reference_image_path: "street_wires.png"
+→ ~/Downloads/vertexai-imagen-files/street_wires.png から読み込み
+
+# ✅ 絶対パス指定
+reference_image_path: "C:\\Users\\username\\Pictures\\image.png"
+→ 指定されたパスそのままから読み込み
+
+# ❌ チルダ記法は非対応
+reference_image_path: "~/Downloads/image.png"
+→ エラー（展開されません）
+```
+
+#### 推奨ワークフロー
+
+1. **生成**: `generate_image` で相対パス指定 → `VERTEXAI_IMAGEN_OUTPUT_DIR`に保存
+2. **編集**: 同じファイル名を相対パスで指定 → 自動的に同じディレクトリから読み込み
+
+```text
+# 例: 画像生成 → 編集のワークフロー
+1. generate_image → output_path: "cat.png"
+   保存先: ~/Downloads/vertexai-imagen-files/cat.png
+
+2. edit_image → reference_image_path: "cat.png"
+   読み込み元: ~/Downloads/vertexai-imagen-files/cat.png（自動解決）
+```
+
+#### トラブルシューティング
+
+**エラー: "Reference image file could not be read from path: ..."**
+
+- 相対パスの場合、`VERTEXAI_IMAGEN_OUTPUT_DIR`（デフォルト: `~/Downloads/vertexai-imagen-files/`）からの相対パスとして解釈されます
+- 異なる場所の画像を使用する場合は、**絶対パス**で指定してください
+- `list_generated_images` ツールで現在のディレクトリを確認できます
 
 ---
 
