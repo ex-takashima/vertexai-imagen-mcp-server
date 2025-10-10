@@ -270,13 +270,17 @@ Claude Code の設定ファイルに以下を追加してください：
 ### 🖼️ 例5：背景自動置換（人物写真 → 宇宙背景）
 
 ```text
-この人物写真の背景を美しい宇宙空間に変更してください。
-星雲と無数の星が輝く深宇宙をイメージしてください。
+[元画像のファイルパスを記述]
+この人物写真の背景を、柔らかな木漏れ日の差す森の風景に変更してください。
+自然光が人物を包み込むような、穏やかで温かみのある印象に仕上げてください。
 mask_mode は background、edit_mode は bgswap でお願いします。
-保存先は space_background.png にしてください。
+保存先は forest_background.png にしてください。
 ```
+![例5 元画像](./docs/images/generated_image_6.png)
+元画像
 
-![例5](./docs/images/space_background.png)
+![例5](./docs/images/forest_background.png)
+生成画像
 
 ---
 
