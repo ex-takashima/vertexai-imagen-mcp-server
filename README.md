@@ -276,7 +276,7 @@ Claude Code の設定ファイルに以下を追加してください：
 mask_mode は background、edit_mode は bgswap でお願いします。
 保存先は forest_background.png にしてください。
 ```
-![例5 元画像](./docs/images/generated_image_6.png)
+![例5 元画像](./docs/images/generated_image_6a.png)
 元画像
 
 ![例5](./docs/images/forest_background.png)
