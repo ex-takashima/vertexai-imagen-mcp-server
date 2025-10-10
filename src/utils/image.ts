@@ -194,3 +194,45 @@ export function createImageResponse(
     ],
   };
 }
+
+/**
+ * URIベースの画像レスポンスを作成（Resources API用）
+ *
+ * @param uri file:// URI
+ * @param mimeType MIMEタイプ
+ * @param fileSize ファイルサイズ（バイト）
+ * @param filePath 保存先の表示パス
+ * @param additionalInfo 追加情報テキスト（省略可）
+ * @returns MCPレスポンス形式
+ */
+export function createUriImageResponse(
+  uri: string,
+  mimeType: string,
+  fileSize: number,
+  filePath: string,
+  additionalInfo?: string
+) {
+  let responseText = additionalInfo || '';
+  responseText += `\nSaved to: ${filePath}`;
+  responseText += `\nFile size: ${fileSize} bytes`;
+  responseText += `\nMIME type: ${mimeType}`;
+  responseText += `\n\n📎 Image URI: ${uri}`;
+  responseText += `\nℹ️  The image can be accessed via MCP Resources API.`;
+
+  return {
+    content: [
+      {
+        type: "text",
+        text: responseText
+      },
+      {
+        type: "resource",
+        resource: {
+          uri: uri,
+          mimeType: mimeType,
+          text: `Image resource: ${path.basename(uri)}`
+        }
+      }
+    ],
+  };
+}

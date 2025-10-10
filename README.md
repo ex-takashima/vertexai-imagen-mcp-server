@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![npm downloads](https://img.shields.io/npm/dm/@dondonudonjp/vertexai-imagen-mcp-server.svg)](https://www.npmjs.com/package/@dondonudonjp/vertexai-imagen-mcp-server)
 
-**🆕 Latest Update**: Imagen 3.0対応、高度な画像編集機能追加（自動マスク生成、セマンティック分割、背景置換）
+**🆕 Latest Update (v0.4.0)**: MCP Resources API対応、file:// URI による効率的な画像配信、ファイル名重複時の自動連番機能
 
 Vertex AI の Imagen API を使用して画像を生成・編集できる MCP（Model Context Protocol）対応サーバーです。Claude Desktop などの MCP クライアントと連携することで、チャット内から自然言語で高度な画像操作が行えます。
 
@@ -12,16 +12,18 @@ Vertex AI の Imagen API を使用して画像を生成・編集できる MCP（
 
 ## 🌟 主な機能
 
-- 🎨 **画像生成**：テキストから高品質な画像を生成  
-- ✂️ **高度な画像編集**：AIマスク生成、セマンティック編集、背景置換対応  
-- 🎭 **4つのマスクモード**：手動マスク、背景自動検出、前景自動検出、セマンティック分割  
-- 🔄 **多様な編集モード**：インペイント除去、インペイント挿入、背景置換  
-- 📐 **アスペクト比の指定**：1:1, 3:4, 4:3, 9:16, 16:9 に対応  
-- 🔍 **アップスケーリング**：画像を 2 倍または 4 倍に高品質拡大  
-- ⚡ **統合処理**：生成と拡大を一括実行  
-- 🛡️ **安全性フィルター**：安全レベルを柔軟に制御  
-- 👤 **人物生成制御**：人物の生成有無を細かく設定  
-- 📁 **画像管理**：生成済み画像の一覧表示・操作  
+- 🎨 **画像生成**：テキストから高品質な画像を生成
+- ✂️ **高度な画像編集**：AIマスク生成、セマンティック編集、背景置換対応
+- 🎭 **4つのマスクモード**：手動マスク、背景自動検出、前景自動検出、セマンティック分割
+- 🔄 **多様な編集モード**：インペイント除去、インペイント挿入、背景置換
+- 📐 **アスペクト比の指定**：1:1, 3:4, 4:3, 9:16, 16:9 に対応
+- 🔍 **アップスケーリング**：画像を 2 倍または 4 倍に高品質拡大
+- ⚡ **統合処理**：生成と拡大を一括実行
+- 🛡️ **安全性フィルター**：安全レベルを柔軟に制御
+- 👤 **人物生成制御**：人物の生成有無を細かく設定
+- 📁 **画像管理**：生成済み画像の一覧表示・操作
+- 🔗 **MCP Resources API**：file:// URI による効率的な画像配信（トークン消費を大幅削減）
+- 🔢 **自動ファイル名管理**：重複時の自動連番付加で既存ファイルを保護
 - 🔧 **デバッグモード**：ログ出力によるトラブルシュート支援
 
 ---
@@ -610,7 +612,28 @@ output_path: "C:\\Users\\username\\Pictures\\image.png"
 
 ✅ **親ディレクトリの自動作成**: 指定されたパスの親ディレクトリが存在しない場合、自動的に作成されます
 ✅ **パス検証**: API呼び出し前にパスを検証するため、APIクォータの無駄遣いを防止
+✅ **ファイル名重複チェック**: 同名ファイルが存在する場合、自動的に連番を付加（例: `image.png` → `image_1.png` → `image_2.png`）
 ✅ **ユーザーフレンドリーな表示**: 保存先は `~` 表記で表示されます（例: `~/Downloads/vertexai-imagen-files/image.png`）
+
+#### ファイル名重複の自動処理
+
+同じファイル名で複数回画像を生成した場合、既存ファイルを保護するため自動的に連番が付加されます：
+
+```text
+# 1回目の生成
+output_path: "landscape.png"
+→ ~/Downloads/vertexai-imagen-files/landscape.png
+
+# 2回目の生成（同じファイル名）
+output_path: "landscape.png"
+→ ~/Downloads/vertexai-imagen-files/landscape_1.png
+
+# 3回目の生成
+output_path: "landscape.png"
+→ ~/Downloads/vertexai-imagen-files/landscape_2.png
+```
+
+この機能により、既存の画像ファイルが誤って上書きされるリスクがなくなります。
 
 ---
 
@@ -684,17 +707,37 @@ return_base64: true
 → トークン消費が大きいため、特別な理由がない限り使用しないでください
 ```
 
-### 🔍 MCP Resources（将来的な機能）
+### 🔍 MCP Resources API（v0.4.0+）
 
-Model Context Protocolの仕様では、大きなファイルやバイナリデータを扱う場合、以下の方法が推奨されています：
+**✅ 実装済み**：このサーバーは MCP Resources API に完全対応しています。
 
-- **URIベースのリソース管理**: `file://` や `resource://` スキームを使用
-- **遅延読み込み**: クライアントが必要な時だけデータを取得
-- **リソースAPI**: `resources/list` と `resources/read` エンドポイント
+Model Context Protocolの仕様に準拠し、以下の機能を提供：
+
+- **file:// URIによる画像配信**: 生成された画像は自動的に `file://` URI として返却
+- **リソース一覧取得**: `resources/list` エンドポイントで全生成画像を列挙
+- **オンデマンド取得**: `resources/read` エンドポイントで画像データを必要時のみ取得
+- **トークン効率化**: 画像データはURI参照のみで返却されるため、約1,500トークン/画像を削減
+
+#### 利用方法
+
+ファイル保存モード（デフォルト）を使用すると、自動的にResources API経由で画像が提供されます：
+
+```text
+# 画像生成後、以下の情報が返却されます:
+✅ file:// URI（例: file:///Users/username/Downloads/vertexai-imagen-files/sunset.png）
+✅ MCP Resources APIで参照可能
+✅ トークン消費を最小化
+```
 
 > 📚 参考: [MCP Specification - Resources](https://modelcontextprotocol.io/specification/2025-06-18/server/resources)
 
-現在の実装では、ファイル保存モードがこの思想に最も近い形で実装されています。
+#### Base64モードの非推奨化
+
+**⚠️ 重要**: `return_base64=true` オプションは **v1.0.0で削除予定** です。
+
+- 現在は互換性のため維持されていますが、使用は推奨されません
+- Resources API を使用したfile:// URI配信が標準となります
+- 既存のBase64モード利用者は、ファイル保存モードへの移行を推奨
 
 ---
 

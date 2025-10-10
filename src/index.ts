@@ -4,21 +4,25 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import {
   CallToolRequestSchema,
   ErrorCode,
+  ListResourcesRequestSchema,
   ListToolsRequestSchema,
   McpError,
+  ReadResourceRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import axios from 'axios';
 import fs from 'fs/promises';
 import path from 'path';
 import { GoogleAuth } from 'google-auth-library';
 import { createRequire } from 'module';
-import { normalizeAndValidatePath, getDisplayPath } from './utils/path.js';
+import { normalizeAndValidatePath, getDisplayPath, getDefaultOutputDirectory } from './utils/path.js';
 import { getProjectId, getImagenApiUrl, getUpscaleApiUrl } from './utils/auth.js';
+import { ImageResourceManager } from './utils/resources.js';
 import {
   normalizeBase64String,
   detectMimeTypeFromPath,
   resolveImageSource,
   createImageResponse,
+  createUriImageResponse,
   type ResolvedImageSource
 } from './utils/image.js';
 import type {
@@ -51,6 +55,7 @@ const TOOL_EDIT_IMAGE = "edit_image";
 class GoogleImagenMCPServer {
   private server: Server;
   private auth: GoogleAuth;
+  private resourceManager: ImageResourceManager;
 
   constructor() {
     this.server = new Server(
@@ -61,6 +66,7 @@ class GoogleImagenMCPServer {
       {
         capabilities: {
           tools: {},
+          resources: {},
         },
       }
     );
@@ -68,11 +74,16 @@ class GoogleImagenMCPServer {
     // Google Cloud認証の設定
     this.auth = new GoogleAuth({
       scopes: ['https://www.googleapis.com/auth/cloud-platform'],
-      credentials: process.env.GOOGLE_SERVICE_ACCOUNT_KEY ? 
+      credentials: process.env.GOOGLE_SERVICE_ACCOUNT_KEY ?
         JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY) : undefined,
     });
 
+    // リソースマネージャーの初期化
+    const outputDir = getDefaultOutputDirectory();
+    this.resourceManager = new ImageResourceManager(outputDir);
+
     this.setupToolHandlers();
+    this.setupResourceHandlers();
     this.handleProcessArguments();
   }
 
@@ -154,7 +165,7 @@ It should be run by an MCP client like Claude Desktop.
                 },
                 return_base64: {
                   type: "boolean",
-                  description: "Return image as base64 encoded data for display in MCP client instead of saving to file (default: false). WARNING: Consumes ~1,500 tokens per image. File save mode is recommended for better performance.",
+                  description: "DEPRECATED: Return image as base64 data instead of file URI (default: false). This option will be removed in v1.0.0. File save mode with Resources API is strongly recommended.",
                 },
                 safety_level: {
                   type: "string",
@@ -243,7 +254,7 @@ It should be run by an MCP client like Claude Desktop.
                 },
                 return_base64: {
                   type: "boolean",
-                  description: "Return edited image as base64 data instead of writing to disk (default: false). WARNING: Consumes ~1,500 tokens per image. File save mode is recommended for better performance.",
+                  description: "DEPRECATED: Return edited image as base64 data instead of file URI (default: false). This option will be removed in v1.0.0. File save mode with Resources API is strongly recommended.",
                 },
                 guidance_scale: {
                   type: "number",
@@ -294,7 +305,7 @@ It should be run by an MCP client like Claude Desktop.
                 },
                 return_base64: {
                   type: "boolean",
-                  description: "Return image as base64 encoded data for display in MCP client instead of saving to file (default: false). WARNING: Consumes ~1,500 tokens per image. File save mode is recommended for better performance.",
+                  description: "DEPRECATED: Return image as base64 data instead of file URI (default: false). This option will be removed in v1.0.0. File save mode with Resources API is strongly recommended.",
                 },
                 region: {
                   type: "string",
@@ -330,7 +341,7 @@ It should be run by an MCP client like Claude Desktop.
                 },
                 return_base64: {
                   type: "boolean",
-                  description: "Return image as base64 encoded data for display in MCP client instead of saving to file (default: false). WARNING: Consumes ~1,500 tokens per image. File save mode is recommended for better performance.",
+                  description: "DEPRECATED: Return image as base64 data instead of file URI (default: false). This option will be removed in v1.0.0. File save mode with Resources API is strongly recommended.",
                 },
                 safety_level: {
                   type: "string",
@@ -513,8 +524,9 @@ It should be run by an MCP client like Claude Desktop.
         }
 
         // 警告: Base64モードのトークン消費について
-        console.error(`[WARNING] return_base64=true consumes ~1,500 tokens per image in MCP protocol.`);
-        console.error(`[WARNING] Consider using file save mode (return_base64=false) for better performance.`);
+        console.error(`[DEPRECATED WARNING] return_base64=true is deprecated and will be removed in v1.0.0`);
+        console.error(`[WARNING] This mode consumes ~1,500 tokens per image. Use file save mode with Resources API instead.`);
+        console.error(`[INFO] The default mode (return_base64=false) now returns images via file:// URI for optimal performance.`);
         
         return createImageResponse(
           imageBuffer,
@@ -538,14 +550,15 @@ It should be run by an MCP client like Claude Desktop.
         }
 
         const displayPath = getDisplayPath(normalizedPath);
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Image generated successfully!\n\nPrompt: ${prompt}\nAspect ratio: ${aspect_ratio}\nModel: ${model}\nSaved to: ${displayPath}\nFile size: ${imageBuffer.length} bytes\nMIME type: ${generatedImage.mimeType}`
-            }
-          ],
-        };
+        const fileUri = this.resourceManager.getFileUri(normalizedPath);
+
+        return createUriImageResponse(
+          fileUri,
+          generatedImage.mimeType,
+          imageBuffer.length,
+          displayPath,
+          `Image generated successfully!\n\nPrompt: ${prompt}\nAspect ratio: ${aspect_ratio}\nModel: ${model}`
+        );
       }
     } catch (error) {
       if (axios.isAxiosError(error)) {
@@ -814,8 +827,9 @@ It should be run by an MCP client like Claude Desktop.
 
       if (return_base64) {
         // 警告: Base64モードのトークン消費について
-        console.error(`[WARNING] return_base64=true consumes ~1,500 tokens per image in MCP protocol.`);
-        console.error(`[WARNING] Consider using file save mode (return_base64=false) for better performance.`);
+        console.error(`[DEPRECATED WARNING] return_base64=true is deprecated and will be removed in v1.0.0`);
+        console.error(`[WARNING] This mode consumes ~1,500 tokens per image. Use file save mode with Resources API instead.`);
+        console.error(`[INFO] The default mode (return_base64=false) now returns images via file:// URI for optimal performance.`);
 
         return createImageResponse(
           imageBuffer,
@@ -832,14 +846,15 @@ It should be run by an MCP client like Claude Desktop.
       await fs.writeFile(normalizedPath, imageBuffer);
 
       const displayPath = getDisplayPath(normalizedPath);
-      return {
-        content: [
-          {
-            type: "text",
-            text: `${infoText}\nSaved to: ${displayPath}\nFile size: ${imageBuffer.length} bytes\nMIME type: ${editedImage.mimeType}`
-          }
-        ],
-      };
+      const fileUri = this.resourceManager.getFileUri(normalizedPath);
+
+      return createUriImageResponse(
+        fileUri,
+        editedImage.mimeType,
+        imageBuffer.length,
+        displayPath,
+        infoText
+      );
     } catch (error) {
       if (axios.isAxiosError(error)) {
         const errorMessage = error.response?.data?.error?.message || error.message;
@@ -954,8 +969,9 @@ It should be run by an MCP client like Claude Desktop.
         }
 
         // 警告: Base64モードのトークン消費について
-        console.error(`[WARNING] return_base64=true consumes ~1,500 tokens per image in MCP protocol.`);
-        console.error(`[WARNING] Consider using file save mode (return_base64=false) for better performance.`);
+        console.error(`[DEPRECATED WARNING] return_base64=true is deprecated and will be removed in v1.0.0`);
+        console.error(`[WARNING] This mode consumes ~1,500 tokens per image. Use file save mode with Resources API instead.`);
+        console.error(`[INFO] The default mode (return_base64=false) now returns images via file:// URI for optimal performance.`);
 
         return createImageResponse(
           imageBuffer,
@@ -979,14 +995,15 @@ It should be run by an MCP client like Claude Desktop.
         }
 
         const displayPath = getDisplayPath(normalizedPath);
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Image upscaled successfully!\n\nInput: ${input_path}\nScale factor: ${scale_factor}\nSaved to: ${displayPath}\nFile size: ${imageBuffer.length} bytes\nMIME type: ${upscaledImage.mimeType}`
-            }
-          ],
-        };
+        const fileUri = this.resourceManager.getFileUri(normalizedPath);
+
+        return createUriImageResponse(
+          fileUri,
+          upscaledImage.mimeType,
+          imageBuffer.length,
+          displayPath,
+          `Image upscaled successfully!\n\nInput: ${input_path}\nScale factor: ${scale_factor}`
+        );
       }
     } catch (error) {
       if (axios.isAxiosError(error)) {
@@ -1110,15 +1127,20 @@ It should be run by an MCP client like Claude Desktop.
         // ファイル保存モード
         const normalizedPath = await normalizeAndValidatePath(output_path);
         const displayPath = getDisplayPath(normalizedPath);
+        const fileUri = this.resourceManager.getFileUri(normalizedPath);
 
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Image generated and upscaled successfully!\n\nPrompt: ${prompt}\nAspect ratio: ${aspect_ratio}\nModel: ${model}\nScale factor: ${scale_factor}\nFinal output: ${displayPath}\n\nProcess completed in 2 steps:\n1. Generated original image\n2. Upscaled to ${scale_factor}x resolution`
-            }
-          ],
-        };
+        // upscaleResult から画像のメタ情報を取得
+        const mimeType = upscaleResult.content[0]?.text?.match(/MIME type: ([\w\/]+)/)?.[1] || 'image/png';
+        const fileSize = upscaleResult.content[0]?.text?.match(/File size: (\d+) bytes/)?.[1];
+        const size = fileSize ? parseInt(fileSize, 10) : 0;
+
+        return createUriImageResponse(
+          fileUri,
+          mimeType,
+          size,
+          displayPath,
+          `Image generated and upscaled successfully!\n\nPrompt: ${prompt}\nAspect ratio: ${aspect_ratio}\nModel: ${model}\nScale factor: ${scale_factor}\n\nProcess completed in 2 steps:\n1. Generated original image\n2. Upscaled to ${scale_factor}x resolution`
+        );
       }
     } catch (error) {
       // Try to clean up temporary file if it exists
@@ -1139,8 +1161,8 @@ It should be run by an MCP client like Claude Desktop.
     try {
       const files = await fs.readdir(directory);
       const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp'];
-      
-      const imageFiles = files.filter(file => 
+
+      const imageFiles = files.filter(file =>
         imageExtensions.some(ext => file.toLowerCase().endsWith(ext))
       );
 
@@ -1183,6 +1205,78 @@ It should be run by an MCP client like Claude Desktop.
     } catch (error) {
       throw new Error(`Failed to list images: ${error instanceof Error ? error.message : String(error)}`);
     }
+  }
+
+  private setupResourceHandlers() {
+    // リソース一覧の取得
+    this.server.setRequestHandler(ListResourcesRequestSchema, async () => {
+      try {
+        const resources = await this.resourceManager.listResources();
+
+        if (process.env.DEBUG) {
+          console.error(`[DEBUG] Listing ${resources.length} resources`);
+        }
+
+        return {
+          resources: resources.map(r => ({
+            uri: r.uri,
+            name: r.name,
+            mimeType: r.mimeType,
+            description: r.description,
+          }))
+        };
+      } catch (error) {
+        if (error instanceof McpError) {
+          throw error;
+        }
+        throw new McpError(
+          ErrorCode.InternalError,
+          `Failed to list resources: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+    });
+
+    // リソースの読み込み
+    this.server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+      try {
+        const uri = request.params.uri;
+
+        if (process.env.DEBUG) {
+          console.error(`[DEBUG] Reading resource: ${uri}`);
+        }
+
+        const buffer = await this.resourceManager.readResource(uri);
+        const metadata = await this.resourceManager.getResourceMetadata(uri);
+
+        if (!metadata) {
+          throw new McpError(
+            ErrorCode.InvalidRequest,
+            `Resource not found: ${uri}`
+          );
+        }
+
+        // Base64エンコード
+        const base64Data = buffer.toString('base64');
+
+        return {
+          contents: [
+            {
+              uri: uri,
+              mimeType: metadata.mimeType,
+              blob: base64Data
+            }
+          ]
+        };
+      } catch (error) {
+        if (error instanceof McpError) {
+          throw error;
+        }
+        throw new McpError(
+          ErrorCode.InternalError,
+          `Failed to read resource: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+    });
   }
 
 

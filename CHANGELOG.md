@@ -5,6 +5,63 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2025-01-XX
+
+### Added
+- **MCP Resources API support** - Images are now accessible via `resources/list` and `resources/read` endpoints
+  - `src/utils/resources.ts` - New `ImageResourceManager` class for resource lifecycle management
+  - `file://` URI return for all generated images
+  - Automatic resource registration for output directory
+  - Secure path validation with sandboxing (prevents path traversal attacks)
+- **createUriImageResponse()** function - New utility for URI-based image responses
+  - Provides `file://` URIs with resource metadata
+  - MCP Resources API integration
+  - Replaces direct file path returns
+
+### Changed
+- **Default behavior enhancement** - File save mode now includes resource URI in tool responses
+  - All 4 tools (generate_image, edit_image, upscale_image, generate_and_upscale_image) now return `file://` URIs
+  - URIs are accessible via MCP Resources API
+  - Backward compatible - file paths still included in response text
+- **Improved token consumption** - Reduced token usage by ~1,500 tokens per image when using default file save mode
+  - Resources API eliminates need for Base64 encoding in protocol
+  - Images fetched on-demand via `resources/read`
+
+### Deprecated
+- **return_base64 parameter** - Marked as deprecated, will be removed in v1.0.0
+  - Warning messages enhanced to indicate deprecation
+  - Tool descriptions updated with deprecation notice
+  - Users should migrate to file save mode with Resources API
+  - Deprecation warnings: `[DEPRECATED WARNING] return_base64=true is deprecated and will be removed in v1.0.0`
+
+### Security
+- **Path traversal protection** - ImageResourceManager validates all file paths
+  - Prevents access outside configured output directory
+  - Proper path normalization and validation
+  - Sandboxed resource access
+
+### Migration Guide (v0.3.0 → v0.4.0)
+
+#### For Users
+**No action required** - The default behavior remains backward compatible. However, you will now receive `file://` URIs in addition to file paths, enabling better integration with MCP clients.
+
+**If you're using `return_base64=true`**:
+1. Remove the `return_base64=true` parameter from your tool calls
+2. Images will be saved to disk and returned via `file://` URI
+3. Use MCP Resources API to access the images when needed
+
+#### For Developers
+**Accessing generated images**:
+- Use `resources/list` to enumerate all generated images in the output directory
+- Use `resources/read` with a `file://` URI to retrieve image data
+- URIs are automatically included in tool responses
+
+**Benefits**:
+- ~1,500 tokens saved per image (compared to Base64 mode)
+- Stable handling of large images (4K, 8K upscaled images)
+- Better MCP specification compliance
+- Foundation for future features (streaming, signed URLs, etc.)
+
 ## [0.3.0] - 2025-10-10
 
 ### Added
