@@ -440,7 +440,7 @@ It should be run by an MCP client like Claude Desktop.
                 },
                 enable_control_computation: {
                   type: "boolean",
-                  description: "If true, compute control image from REFERENCE_TYPE_RAW image automatically. If false, use provided control image (default: false)",
+                  description: "If true, compute control image from raw image automatically (recommended for normal images). If false, use provided pre-processed control image (default: true)",
                 },
                 subject_images: {
                   type: "array",
@@ -518,8 +518,8 @@ It should be run by an MCP client like Claude Desktop.
                 },
                 model: {
                   type: "string",
-                  enum: ["imagen-4.0-ultra-generate-preview-06-06", "imagen-4.0-fast-generate-preview-06-06", "imagen-4.0-generate-preview-06-06", "imagen-3.0-generate-002", "imagen-3.0-fast-generate-001"],
-                  description: "Imagen model to use (default: imagen-3.0-generate-002)",
+                  enum: ["imagen-3.0-capability-001", "imagegeneration@006", "imagegeneration@005", "imagegeneration@002"],
+                  description: "Imagen model to use (default: imagen-3.0-capability-001)",
                 },
                 region: {
                   type: "string",
@@ -1441,7 +1441,7 @@ It should be run by an MCP client like Claude Desktop.
       control_image_base64,
       control_image_path,
       control_type,
-      enable_control_computation = false,
+      enable_control_computation = true,
       subject_images,
       subject_description,
       subject_type,
@@ -1456,7 +1456,7 @@ It should be run by an MCP client like Claude Desktop.
       person_generation = "DONT_ALLOW",
       language = "auto",
       negative_prompt,
-      model = "imagen-3.0-generate-002",
+      model = GOOGLE_IMAGEN_EDIT_MODEL,
       region
     } = args;
 
@@ -1523,6 +1523,8 @@ It should be run by an MCP client like Claude Desktop.
         "scribble": "CONTROL_TYPE_SCRIBBLE"
       } as const;
 
+      // Control image is always provided with REFERENCE_TYPE_CONTROL
+      // The enableControlImageComputation flag determines if API computes the control map from raw image
       referenceImages.push({
         referenceType: "REFERENCE_TYPE_CONTROL",
         referenceId: currentRefId++,
@@ -1644,6 +1646,15 @@ It should be run by an MCP client like Claude Desktop.
       console.error(`[DEBUG] Request body: ${JSON.stringify(requestBody, null, 2)}`);
     }
 
+    // Always log reference images structure for debugging control image issues
+    console.error(`[DEBUG customize_image] Reference images count: ${referenceImages.length}`);
+    referenceImages.forEach((ref, idx) => {
+      console.error(`[DEBUG customize_image] Ref ${idx}: type=${ref.referenceType}, id=${ref.referenceId}, hasImage=${!!ref.referenceImage}, hasConfig=${!!ref.controlImageConfig || !!ref.subjectImageConfig || !!ref.styleImageConfig}`);
+      if (ref.referenceImage) {
+        console.error(`[DEBUG customize_image] Ref ${idx} image: hasBytes=${!!ref.referenceImage.bytesBase64Encoded}, bytesLength=${ref.referenceImage.bytesBase64Encoded?.substring(0, 50)}...`);
+      }
+    });
+
     try {
       // OAuth2 access token
       const authClient = await this.auth.getClient();
@@ -1656,6 +1667,10 @@ It should be run by an MCP client like Claude Desktop.
       // Get project ID and build API URL
       const projectId = await getProjectId(this.auth);
       const apiUrl = getImagenApiUrl(projectId, model, region);
+
+      console.error(`[DEBUG customize_image] API URL: ${apiUrl}`);
+      console.error(`[DEBUG customize_image] Model: ${model}`);
+      console.error(`[DEBUG customize_image] Full request body: ${JSON.stringify(requestBody, null, 2)}`);
 
       const response = await axios.post<GoogleImagenResponse>(
         apiUrl,

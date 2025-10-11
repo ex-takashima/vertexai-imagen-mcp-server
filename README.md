@@ -180,62 +180,139 @@ Claude Code の設定ファイルに以下を追加してください：
 }
 ```
 
-## 💬 使用方法の例（チャット内での自然言語）
+## 🧪 使用例（Claude 指示文）
+自然言語で指示するだけで画像生成・編集・管理を行えます。
+画像は自動的に `~/Downloads/vertexai-imagen-files/` に保存されます。
 
-### 画像生成
-
-```
-美しい夕日の風景を生成してください
-```
-
-### アスペクト比指定
-
-```
-16:9 のワイド画面で、山の風景を生成
-```
-
-### アップスケーリング
-
-```
-"cat.jpg" を4倍に拡大してください
-```
-
-### 統合処理（生成 + 拡大）
-
-```
-宇宙の画像を縦長で生成し、2倍に拡大して表示してください
-```
-
-### 画像編集（NEW！）
-
-#### 背景を自動変更
-```
-この人物写真の背景を宇宙空間に変えてください
-```
-
-#### 不要なオブジェクトを除去
-```
-この写真から人物を除去してください
-```
-
-#### セマンティック編集
-```
-この画像の人物部分だけを別の服装に変更してください
-```
-## 🧪 使用例（Claude Code 指示文）※Imagen 3を利用
-以下は、Claude Code で VertexAI Imagen MCP サーバーを使用して画像を生成・保存するための自然言語プロンプトの例です。
-画像は相対パスで指定すると、デフォルトの保存先 `~/Downloads/vertexai-imagen-files/` に保存されます。
-
-
-### 🏞️ 例1：美しい夕日の風景
-
+### 🟦 Ⅰ. 基本生成（Generate）
+#### 例1：シンプル生成
 ```text
 「美しい夕日の風景」をテーマに画像を生成し、横長の 16:9 比率でお願いします。
 人物は含めず、安全性フィルターは標準（中リスク以上をブロック）で。
 保存ファイル名は sunset_landscape.png としてください。
 ```
-
+#### 📸 出力例
 ![例1](./docs/images/sunset_landscape.png)
+---
+
+#### 例2：人物ポートレート（成人許可）
+
+```text
+人物のポートレートを縦長（3:4）で生成してください。
+成人のみ許可し、安全性フィルターは高リスクのみブロック。
+保存先は portrait_adult.png にしてください。
+```
+
+#### 📸 出力例
+
+![portrait\_adult](./docs/images/portrait_adult.png)
+
+---
+#### 例3：英語プロンプト比較
+
+```text
+language: "en"
+Prompt: "A tranquil forest with sunbeams filtering through the trees"
+保存先は forest_en.png にしてください。
+```
+
+#### 📸 出力例
+
+![forest\_en](./docs/images/forest_en.png)
+---
+
+### 🟦 Ⅱ. 画像編集（Edit）
+
+#### 例4：背景変更（人物→森）
+
+```text
+[reference_image_path を指定]
+この人物の背景を森に置き換えてください。
+mask_mode: background
+edit_mode: bgswap
+保存先は forest_background.png にしてください。
+```
+
+#### 📸 入力画像
+
+![例4の入力画像](./docs/images/generated_image_6a.png)
+
+#### 📸 出力例
+
+![forest\_background](./docs/images/forest_background.png)
+
+---
+#### 例5：オブジェクト除去
+
+```text
+[reference_image_path を指定]
+リビングの写真からソファ上のクッションを除去してください。
+mask_mode: foreground
+edit_mode: inpaint_removal
+保存先は clean_sofa.png にしてください。
+```
+#### 📸 入力画像
+
+![例5の入力画像](./docs/images/sofa_cushion.png)
+#### 📸 出力例
+
+![clean\_sofa](./docs/images/clean_sofa.png)
+(￣□￣;)!!
+---
+
+#### 例6：服装変更（セマンティック編集）
+
+```text
+[reference_image_path を指定]
+この女性の服装だけをフォーマルなビジネススーツに変更してください。顔、髪型、表情、ポーズ、背景はそのまま維持してください。紺色または黒のジャケットとパンツのスーツで、インナーは白いブラウス。プロフェッショナルで洗練された印象。
+保存先は formal_outfit.pngにしてください。
+mask_mode: "semantic"
+mask_classes: [125] (人物)
+edit_mode: "inpaint_insertion"
+mask_dilation: 0.05
+```
+#### 📸 入力画像
+
+![例6の入力画像](./docs/images/cafe_woman_casual.png)
+#### 📸 出力例
+
+![clean\_sofa](./docs/images/formal_outfit_1.png)
+(￣□￣;)!!
+---
+
+#### 例7：マスクなし編集（Mask-Free）
+
+```text
+[reference_image_path を指定]
+この猫の写真を同じ構図で犬に変えてください。
+mask_mode は指定しません。
+保存先は dog_transformed.png にしてください。
+```
+#### 📸 入力画像
+
+![例7の入力画像](./docs/images/cute_cat_living_room.png)
+#### 📸 出力例
+
+![例7の出力画像](./docs/images/dog_transformed.png)
+(￣▽￣;)
+---
+
+
+### 🟦 Ⅲ. カスタマイズ生成（Customize）
+
+#### 例8：構図制御（Control）
+
+```text
+[reference_image_path を指定]
+pose.jpg のポーズを参照し、同じ構図で人物を生成してください。
+control_image_path: "pose.png"
+control_type: "face_mesh"
+保存先は pose_match.png にしてください。
+```
+
+---
+
+
 ---
 ### 🐱 例2：宇宙服を着た猫のイラスト
 
@@ -474,7 +551,7 @@ mask_classes: [125]  # 人物のクラスID（必須）
 ```text
 control_image_path: "pose.png"  # または control_image_base64
 control_type: "face_mesh" | "canny" | "scribble"
-enable_control_computation: false  # true=自動計算、false=提供画像使用
+enable_control_computation: true  # true=自動計算（推奨、通常の画像）、false=処理済み画像使用（デフォルト: true）
 ```
 
 **control_type の種類:**
