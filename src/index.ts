@@ -868,10 +868,17 @@ It should be run by an MCP client like Claude Desktop.
       "inpaint_removal": "EDIT_MODE_INPAINT_REMOVAL",
       "inpaint_insertion": "EDIT_MODE_INPAINT_INSERTION",
       "bgswap": "EDIT_MODE_BGSWAP",
-      "outpainting": "EDIT_MODE_OUTPAINT"
+      "outpainting": "EDIT_MODE_OUTPAINT",
+      "mask_free": "EDIT_MODE_DEFAULT"
     } as const;
 
-    const apiEditMode = editModeMap[edit_mode as keyof typeof editModeMap] || "edit";
+    // マスクフリーモードの場合は常に EDIT_MODE_DEFAULT を使用
+    let apiEditMode: "EDIT_MODE_INPAINT_REMOVAL" | "EDIT_MODE_INPAINT_INSERTION" | "EDIT_MODE_BGSWAP" | "EDIT_MODE_OUTPAINT" | "EDIT_MODE_DEFAULT" | "edit";
+    if (!mask_mode || mask_mode === "mask_free") {
+      apiEditMode = "EDIT_MODE_DEFAULT";
+    } else {
+      apiEditMode = editModeMap[edit_mode as keyof typeof editModeMap] || "EDIT_MODE_DEFAULT";
+    }
 
     const requestBody: GoogleImagenEditRequest = {
       instances: [
