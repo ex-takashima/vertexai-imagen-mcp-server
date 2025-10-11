@@ -31,16 +31,29 @@ export async function generateThumbnail(
 ): Promise<string> {
   try {
     // Sharpでリサイズ処理
-    const thumbnailBuffer = await sharp(imageBuffer)
+    let sharpInstance = sharp(imageBuffer)
       .resize(config.maxWidth, config.maxHeight, {
         fit: 'inside',           // アスペクト比を維持
         withoutEnlargement: true // 元画像より大きくしない
-      })
-      .jpeg({
+      });
+
+    // フォーマットに応じた圧縮処理を適用
+    if (config.format === 'jpeg') {
+      sharpInstance = sharpInstance.jpeg({
         quality: config.quality,
         progressive: true        // プログレッシブJPEG
-      })
-      .toBuffer();
+      });
+    } else if (config.format === 'png') {
+      sharpInstance = sharpInstance.png({
+        quality: config.quality
+      });
+    } else if (config.format === 'webp') {
+      sharpInstance = sharpInstance.webp({
+        quality: config.quality
+      });
+    }
+
+    const thumbnailBuffer = await sharpInstance.toBuffer();
 
     // Base64 Data URIとして返却
     const base64 = thumbnailBuffer.toString('base64');
@@ -65,16 +78,29 @@ export async function generateThumbnailFromFile(
   config: ThumbnailConfig = DEFAULT_THUMBNAIL_CONFIG
 ): Promise<string> {
   try {
-    const thumbnailBuffer = await sharp(filePath)
+    let sharpInstance = sharp(filePath)
       .resize(config.maxWidth, config.maxHeight, {
         fit: 'inside',
         withoutEnlargement: true
-      })
-      .jpeg({
+      });
+
+    // フォーマットに応じた圧縮処理を適用
+    if (config.format === 'jpeg') {
+      sharpInstance = sharpInstance.jpeg({
         quality: config.quality,
         progressive: true
-      })
-      .toBuffer();
+      });
+    } else if (config.format === 'png') {
+      sharpInstance = sharpInstance.png({
+        quality: config.quality
+      });
+    } else if (config.format === 'webp') {
+      sharpInstance = sharpInstance.webp({
+        quality: config.quality
+      });
+    }
+
+    const thumbnailBuffer = await sharpInstance.toBuffer();
 
     const base64 = thumbnailBuffer.toString('base64');
     const mimeType = `image/${config.format}`;

@@ -240,8 +240,8 @@ export async function createUriImageResponse(
   ];
 
   // サムネイル生成（オプション）
-  // 環境変数で有効化が必要（デフォルト: 無効）
-  const thumbnailEnabled = process.env.VERTEXAI_IMAGEN_THUMBNAIL === 'true' && includeThumbnail;
+  // includeThumbnail パラメータで制御（各ツールで環境変数を考慮済み）
+  const thumbnailEnabled = includeThumbnail;
 
   if (thumbnailEnabled) {
     try {

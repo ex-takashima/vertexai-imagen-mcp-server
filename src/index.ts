@@ -1494,6 +1494,21 @@ It should be run by an MCP client like Claude Desktop.
     // Normalize path BEFORE API call
     const normalizedPath = return_base64 ? undefined : await normalizeAndValidatePath(output_path);
 
+    // Count number of reference image types
+    const refTypeCount = (hasControl ? 1 : 0) + (hasSubject ? 1 : 0) + (hasStyle ? 1 : 0);
+
+    // API Limitation: Non-square aspect ratios can only process up to 2 reference image types
+    if (refTypeCount > 2 && aspect_ratio !== "1:1") {
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        `API limitation: Cannot use more than 2 reference image types with non-square aspect ratio. ` +
+        `You are using ${refTypeCount} types (${hasControl ? 'control ' : ''}${hasSubject ? 'subject ' : ''}${hasStyle ? 'style' : ''}) ` +
+        `with aspect ratio ${aspect_ratio}. Please either: ` +
+        `1) Use aspect_ratio="1:1" (square) to enable 3 reference types, or ` +
+        `2) Reduce to 2 or fewer reference image types.`
+      );
+    }
+
     if (process.env.DEBUG) {
       console.error(`[DEBUG] Customizing image with prompt: ${prompt}`);
       console.error(`[DEBUG] Has control: ${hasControl}, Has subject: ${hasSubject}, Has style: ${hasStyle}`);

@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![npm downloads](https://img.shields.io/npm/dm/@dondonudonjp/vertexai-imagen-mcp-server.svg)](https://www.npmjs.com/package/@dondonudonjp/vertexai-imagen-mcp-server)
 
-**🆕 Latest Update (v0.4.0)**: MCP Resources API対応、file:// URI による効率的な画像配信、ファイル名重複時の自動連番機能
+**🆕 Latest Update (v0.5.1)**: MCP Resources API対応、file:// URI による効率的な画像配信、ファイル名重複時の自動連番機能
 
 Vertex AI の Imagen API を使用して画像を生成・編集できる MCP（Model Context Protocol）対応サーバーです。Claude Desktop などの MCP クライアントと連携することで、チャット内から自然言語で高度な画像操作が行えます。
 
@@ -303,131 +303,165 @@ mask_mode は指定しません。
 #### 例8：構図制御（Control）
 
 ```text
-[reference_image_path を指定]
-pose.jpg のポーズを参照し、同じ構図で人物を生成してください。
-control_image_path: "pose.png"
-control_type: "face_mesh"
-保存先は pose_match.png にしてください。
+[reference_image_path を指定=pose.png]
+pose.png のポーズを参照し、同じ構図で人物を生成してください。
+control_type: "scribble"
+保存先は park_woman_scribble.png にしてください。
 ```
+#### 📸 入力画像
+
+![例8の入力画像](./docs/images/pose.png)
+↑ChatGPTで出力
+```text
+バレエを踊っている動作を表す棒人間の写真を生成して　アスペクト比3:4　棒人間は白　背景は黒　
+棒の太さは少し太め関節はよくわかるようにして
+```
+#### 📸 出力例
+
+![例8の出力画像](./docs/images/park_woman_scribble.png)
+![例8の出力画像2](./docs/images/park_woman_canny.png)
+↑コントロールタイプをcannyにした場合
 
 ---
-
-
----
-### 🐱 例2：宇宙服を着た猫のイラスト
+#### 例9：被写体一貫性（Subject）
 
 ```text
-宇宙服を着て星空を漂っている可愛い猫のイラストを生成してください。日本語指定です。
-正方形（1:1）の比率で、人物生成は許可せず、安全性フィルターは高リスクのみブロックでお願いします。
-保存先ファイルは space_cat.png にしてください。
+同じ猫を別の背景で生成してください。
+subject_images:
+  - { image_path: "cat1.jpg" }
+  - { image_path: "cat2.jpg" }
+subject_description: "a brown tabby cat"
+subject_type: "animal"
+prompt: "An orange and white tabby cat [1] sitting on a traditional Japanese wooden engawa (veranda) in spring. Cherry blossoms visible in the background. Warm sunlight and peaceful atmosphere. Traditional Japanese house setting."
+保存先は engawa_cat.png にしてください。
 ```
-![例2](./docs/images/space_cat.png)
-***注意:意図しない画像の生成や、プロンプトの内容によっては安全性フィルターにより画像生成に失敗することがあります。その際は、英語プロンプトでの生成を依頼するか、languageオプションを指定して試してください。***
+#### 📸 入力画像
+
+![例9の入力画像](./docs/images/053d9476-b438-4bf1-8069-e40f4c4c650f.png)
+![例9の入力画像](./docs/images/easy-banana-2025-10-11T09-53-01-377Z.png)
+
+#### 📸 出力例
+
+![例9の出力画像](./docs/images/engawa_cat.png)
 
 ---
-### 🐲 例3：ドラゴンの高解像度画像（生成＋4倍拡大）
+#### 例10：スタイル転送（Style）
 
 ```text
-ドラゴンのかっこいいイラストを生成し、16:9 の横長比率でお願いします。
-人物は含めず、安全性フィルターは標準。
-4 倍にアップスケーリング、プロンプトは英語でお願いします。dragon_4x.png に保存してください。
+style_image_path: "starry_night.png"
+style_description: "Van Gogh painting style with swirling brushstrokes"
+prompt: "A modern city skyline at night with tall skyscrapers, illuminated windows, and city lights reflected in water, painted in the style of [1]. Swirling sky with stars above the buildings."
+output_path: "van_gogh_city_detailed.png"
 ```
-![例3](./docs/images/dragon_4x.png)
+#### 📸 入力画像
+
+![例10の入力画像](./docs/images/starry_night.png)
+#### 📸 出力例
+
+![van\_gogh\_city](./docs/images/van_gogh_city_3x4.png)
 
 ---
-### 🧒 例4：人物ありのポートレート（成人のみ許可）
+
+#### 例11：複合利用（被写体＋構図＋スタイル）
+
+```json
+{
+  `prompt`: `A Renaissance oil painting portrait of a young Japanese woman [1] in an elegant dynamic pose with one arm raised gracefully [2]. She wears luxurious Renaissance-era clothing with rich fabrics, jewelry, and period-appropriate accessories. Painted in the classical Renaissance style [3] with chiaroscuro lighting, warm golden tones, detailed brushwork, and a dark background. The pose should match the reference gesture while maintaining the dignified Renaissance portrait aesthetic.`,
+  `language`: `en`,
+  `output_path`: `renaissance_pose_detailed.png`,
+  `aspect_ratio`: `1:1`,
+  `control_type`: `scribble`,
+  `subject_type`: `person`,
+  `subject_images`: [
+    {
+      `woman_park_1x1.png`
+    }
+  ],
+  `style_image_path`: `renaissance_1x1.png`,
+  `person_generation`: `ALLOW_ADULT`,
+  `style_description`: `Renaissance oil painting style with chiaroscuro lighting and rich colors`,
+  `control_image_path`: `pose1x1.png`,
+  `subject_description`: `A young Japanese woman in her 20s with natural features and a friendly expression`,
+  `enable_control_computation`: false
+}
+```
+#### 📸 入力画像
+
+![例11の入力画像](./docs/images/woman_park_1x1.png)
+![例11の入力画像](./docs/images/pose1x1.png)
+![例11の入力画像](./docs/images/renaissance_1x1.png)
+
+#### 📸 出力例
+
+![van\_gogh\_city](./docs/images/renaissance_pose_detailed.png)
+( ･_･;)
+
+---
+### 🟦 Ⅳ. 高解像度・統合処理
+
+#### 例12：生成＋アップスケーリング
 
 ```text
-人物のポートレート画像を縦長（3:4）で生成してください。
-成人の人物生成を許可し、安全性フィルターは高リスクのみブロックでお願いします。プロンプトの言語は日本語です。
-保存先は portrait_adult.png にしてください。
+ドラゴンのイラストを横長 16:9 で生成し、4倍に拡大して保存してください。
+generate_and_upscale_image を使い、
+出力ファイル名は dragon_4x.png にしてください。
 ```
 
-![例4](./docs/images/portrait_adult.png)
+#### 📸 出力例
+
+![dragon\_4x](./docs/images/dragon_4x.png)
 
 ---
-
-### 🖼️ 例5：背景自動置換（人物写真 → 森背景）
+#### 例13：既存画像のアップスケーリング
 
 ```text
-[元画像のファイルパスを記述]
-この人物写真の背景を、柔らかな木漏れ日の差す森の風景に変更してください。
-自然光が人物を包み込むような、穏やかで温かみのある印象に仕上げてください。
-mask_mode は background、edit_mode は bgswap でお願いします。
-保存先は forest_background.png にしてください。
+input_path: "portrait_adult.png"
+scale_factor: 4
+保存ファイル名は portrait_upscaled.png にしてください。
 ```
-![例5 元画像](./docs/images/generated_image_6a.png)
-元画像
-
-![例5](./docs/images/forest_background.png)
-生成画像
 
 ---
+### 🟦 Ⅴ. 管理・ユーティリティ
 
-### 🧹 例6：オブジェクト除去（インペイント除去）
+#### 例14：生成画像一覧
 
 ```text
-[元画像のファイルパスを記述]
-このリビングの写真で、ソファの上に置かれたクッションを自然に除去してください。
-ソファ本体や背景の家具は残します。
-mask_mode は foreground、edit_mode は inpaint_removal に設定。
-base_steps は 16、guidance_scale は 10 にしてください。
-保存先は clean_sofa.png にしてください。
+保存ディレクトリ内の生成画像を一覧表示してください。
+list_generated_images
 ```
 
-![例6](./docs/images/sofa_cushion.png)
-元画像
-
-![例6](./docs/images/clean_sofa.png)
-生成画像
-
 ---
-
-### 👗 例7：セマンティック編集（服装変更）
+#### 例15：セマンティッククラス検索
 
 ```text
-この人物の服装を変更してください。人物部分のみを対象に、
-カジュアルな服装からフォーマルなビジネススーツに変更してください。
-mask_mode: semantic、mask_classes: [125]、edit_mode: inpaint_insertion
-保存先は formal_outfit.png にしてください。
+「動物」カテゴリのセマンティッククラスを表示してください。
+list_semantic_classes
 ```
 
-![例7](./docs/images/formal_outfit.png)
-
 ---
-
-### 🏠 例8：手動マスクでの部分編集
+#### 例16：file:// URI 確認
 
 ```text
-この部屋の写真で、窓の外の景色だけを変更したいと思います。
-提供されたマスク画像（window_mask.png）を使用して、
-窓の外を美しい桜並木の景色に変更してください。
-mask_mode: user_provided、mask_image_path: window_mask.png
-保存先は sakura_view.png にしてください。
+青空の風景を生成し、出力パスを教えてください。
 ```
 
-![例8](./docs/images/sakura_view.png)
+📄 返却例：
+`file:///Users/username/Downloads/vertexai-imagen-files/sky.png`
 
 ---
-
-### ✨ 例9：マスクなし編集（Mask-Free）⭐ **NEW!**
+#### 例17：サムネイル生成有効化
 
 ```text
-[元画像のファイルパスを記述]
-この猫の写真を、同じ構図で犬の写真に変更してください。
-背景はそのままで、猫を犬に置き換えるイメージです。
-保存先は dog_transformed.png にしてください。
+「桜並木の風景」を生成して、サムネイルも作成してください。
+include_thumbnail: true
 ```
 
-**特徴:**
-- `mask_mode`を指定せず、プロンプトのみで編集
-- AIが自動的に猫の部分を認識して犬に変換
-- 最もシンプルで柔軟な編集方法
+💡 `VERTEXAI_IMAGEN_THUMBNAIL=true` を設定すると、すべての生成で自動的にサムネイルが生成されます。
+
+***注意***  Claude Desktopで有効にするとチャットが中断されます
 
 ---
 
-
----
 
 ## 🛠 利用可能な MCP ツール
 
