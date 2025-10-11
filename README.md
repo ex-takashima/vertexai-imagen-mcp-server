@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![npm downloads](https://img.shields.io/npm/dm/@dondonudonjp/vertexai-imagen-mcp-server.svg)](https://www.npmjs.com/package/@dondonudonjp/vertexai-imagen-mcp-server)
 
-**🆕 Latest Update (v0.5.1)**: MCP Resources API対応、file:// URI による効率的な画像配信、ファイル名重複時の自動連番機能
+**🆕 Latest Update (v0.5.2)**: MCP Resources API対応、file:// URI による効率的な画像配信、ファイル名重複時の自動連番機能
 
 Vertex AI の Imagen API を使用して画像を生成・編集できる MCP（Model Context Protocol）対応サーバーです。Claude Desktop などの MCP クライアントと連携することで、チャット内から自然言語で高度な画像操作が行えます。
 
