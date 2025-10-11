@@ -5,6 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.3] - 2025-10-12
+
+### Fixed
+- **generate_and_upscale_image ツールのURI/パス不一致を修正**
+  - `src/index.ts` - `generateAndUpscaleImage()` メソッドで、`normalizeAndValidatePath()` が2回呼び出されることにより、自動連番機能が異なるファイル名を生成し、サムネイル生成が失敗する問題を解決
+  - アップスケール結果から実際のfile:// URIを抽出し、`ResourceManager.resolveUri()` で正しいパスを取得するように変更
+  - TypeScript型ガード (`c is { type: 'resource'; ... }`) を使用して安全な型チェックを実装
+  - `McpError` 例外の適切な処理を追加
+
+- **一時ファイル削除の確実な実行**
+  - `src/index.ts` - `generateAndUpscaleImage()` メソッドで一時ファイルが削除されない問題を修正
+  - タイムスタンプ変数 (`tempImageTimestamp`) を事前に計算し、`try` / `catch` ブロック間で共有
+  - 絶対パス (`tempImageAbsPath`) を事前に生成し、成功時とエラー時の両方で一貫して使用
+  - 相対パスと再計算されたタイムスタンプによる不一致を解消
+
+### Changed
+- **コード品質の向上**
+  - TypeScript型ガードによる型安全性の強化
+  - エラーハンドリングの改善（`McpError` の適切な処理）
+  - ファイルライフサイクル管理の最適化
+
+## [0.5.2] - 2025-10-11
+
+### Changed
+- デバッグログの最適化と非推奨警告の合理化
+
+## [0.5.1] - 2025-10-11
+
+### Fixed
+- **サムネイル生成ロジックの改善**
+  - `src/utils/image.ts` - `include_thumbnail: true` パラメータを指定した場合、環境変数の設定に関わらずサムネイルが生成されるように修正
+  - `ThumbnailConfig` の `format` パラメータ（jpeg/png/webp）が正しく適用されるように修正
+
+### Added
+- **customize_image ツールのバリデーション強化**
+  - 非正方形アスペクト比で3つの参照画像タイプを使用した際のバリデーションを追加
+  - API制限事前チェックにより、明確なエラーメッセージと解決策を提示
+
 ## [0.4.0] - 2025-10-10
 
 ### Added
