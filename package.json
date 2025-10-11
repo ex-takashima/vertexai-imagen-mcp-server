@@ -1,6 +1,6 @@
 {
   "name": "@dondonudonjp/vertexai-imagen-mcp-server",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "MCP Server for Vertex AI Imagen image generation",
   "type": "module",
   "main": "build/index.js",

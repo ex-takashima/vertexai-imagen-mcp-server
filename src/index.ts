@@ -619,14 +619,7 @@ It should be run by an MCP client like Claude Desktop.
 
     // デバッグログ
     if (process.env.DEBUG) {
-      console.error(`[DEBUG] Generating image with prompt: ${prompt}`);
-      console.error(`[DEBUG] Output path: ${output_path}`);
-      if (normalizedPath) {
-        console.error(`[DEBUG] Normalized path: ${normalizedPath}`);
-      }
-      console.error(`[DEBUG] Aspect ratio: ${aspect_ratio}`);
-      console.error(`[DEBUG] Safety level: ${safety_level}`);
-      console.error(`[DEBUG] Model: ${model}`);
+      console.error(`[DEBUG] generate_image: model=${model}, aspect=${aspect_ratio}, safety=${safety_level}`);
     }
 
     const requestBody: GoogleImagenRequest = {
@@ -695,15 +688,8 @@ It should be run by an MCP client like Claude Desktop.
       
       if (return_base64) {
         // Base64モード: 画像データを直接返す
-        if (process.env.DEBUG) {
-          console.error(`[DEBUG] Returning image as base64 data`);
-        }
+        console.error(`[WARNING] return_base64=true is deprecated and consumes ~1,500 tokens. Use file save mode (default) instead.`);
 
-        // 警告: Base64モードのトークン消費について
-        console.error(`[DEPRECATED WARNING] return_base64=true is deprecated and will be removed in v1.0.0`);
-        console.error(`[WARNING] This mode consumes ~1,500 tokens per image. Use file save mode with Resources API instead.`);
-        console.error(`[INFO] The default mode (return_base64=false) now returns images via file:// URI for optimal performance.`);
-        
         return createImageResponse(
           imageBuffer,
           generatedImage.mimeType,
@@ -720,11 +706,6 @@ It should be run by an MCP client like Claude Desktop.
         }
 
         await fs.writeFile(normalizedPath, imageBuffer);
-
-        if (process.env.DEBUG) {
-          console.error(`[DEBUG] Image saved to: ${normalizedPath}`);
-        }
-
         const displayPath = getDisplayPath(normalizedPath);
         const fileUri = this.resourceManager.getFileUri(normalizedPath);
 
@@ -749,8 +730,7 @@ It should be run by an MCP client like Claude Desktop.
         const errorCode = error.response?.status;
 
         if (process.env.DEBUG) {
-          console.error(`[DEBUG] API Error: ${errorMessage}`);
-          console.error(`[DEBUG] API Status Code: ${errorCode}`);
+          console.error(`[DEBUG] API Error ${errorCode}: ${errorMessage}`);
         }
 
         if (errorCode === 401 || errorCode === 403) {
@@ -958,36 +938,7 @@ It should be run by an MCP client like Claude Desktop.
     }
 
     if (process.env.DEBUG) {
-      console.error(`[DEBUG] Editing image`);
-      console.error(`[DEBUG] Model: ${model}`);
-      console.error(`[DEBUG] Edit mode: ${edit_mode} -> ${apiEditMode}`);
-      console.error(`[DEBUG] Mask mode: ${mask_mode}`);
-      console.error(`[DEBUG] Return as base64: ${return_base64}`);
-      console.error(`[DEBUG] Reference images count: ${referenceImages.length}`);
-      console.error(
-        `[DEBUG] Reference image source: ${
-          baseImage.source === "file"
-            ? `file:${baseImage.filePath}`
-            : baseImage.source === "data-uri"
-              ? 'data URI'
-              : 'base64 string'
-        }`
-      );
-      if (mask_mode === "semantic" && mask_classes) {
-        console.error(`[DEBUG] Semantic mask classes: ${mask_classes.join(', ')}`);
-      }
-      if (mask_dilation !== undefined) {
-        console.error(`[DEBUG] Mask dilation: ${mask_dilation}`);
-      }
-      if (base_steps !== undefined) {
-        console.error(`[DEBUG] Base steps: ${base_steps}`);
-      }
-      if (guidance_scale !== undefined) {
-        console.error(`[DEBUG] Guidance scale: ${guidance_scale}`);
-      }
-      if (negative_prompt) {
-        console.error(`[DEBUG] Negative prompt: ${negative_prompt}`);
-      }
+      console.error(`[DEBUG] edit_image: model=${model}, edit=${edit_mode}, mask=${mask_mode}, refs=${referenceImages.length}`);
     }
 
     try {
@@ -1024,10 +975,7 @@ It should be run by an MCP client like Claude Desktop.
       const infoText = `Image edited successfully!\n\nPrompt: ${prompt}\nModel: ${model}\nEdit mode: ${edit_mode}\nMask mode: ${mask_mode}\nMask applied: ${maskApplied}`;
 
       if (return_base64) {
-        // 警告: Base64モードのトークン消費について
-        console.error(`[DEPRECATED WARNING] return_base64=true is deprecated and will be removed in v1.0.0`);
-        console.error(`[WARNING] This mode consumes ~1,500 tokens per image. Use file save mode with Resources API instead.`);
-        console.error(`[INFO] The default mode (return_base64=false) now returns images via file:// URI for optimal performance.`);
+        console.error(`[WARNING] return_base64=true is deprecated and consumes ~1,500 tokens. Use file save mode (default) instead.`);
 
         return createImageResponse(
           imageBuffer,
@@ -1066,8 +1014,7 @@ It should be run by an MCP client like Claude Desktop.
         const errorCode = error.response?.status;
 
         if (process.env.DEBUG) {
-          console.error(`[DEBUG] Edit API Error: ${errorMessage}`);
-          console.error(`[DEBUG] Edit API Status Code: ${errorCode}`);
+          console.error(`[DEBUG] API Error ${errorCode}: ${errorMessage}`);
         }
 
         if (errorCode === 401 || errorCode === 403) {
@@ -1102,17 +1049,12 @@ It should be run by an MCP client like Claude Desktop.
 
     // デバッグログ
     if (process.env.DEBUG) {
-      console.error(`[DEBUG] Upscaling image: ${input_path}`);
-      console.error(`[DEBUG] Scale factor: ${scale_factor}`);
+      console.error(`[DEBUG] upscale_image: scale=${scale_factor}`);
     }
 
     try {
       // 入力画像ファイルパスを解決（相対パスの場合はVERTEXAI_IMAGEN_OUTPUT_DIRから解決）
       const resolvedInputPath = resolveInputPath(input_path);
-
-      if (process.env.DEBUG) {
-        console.error(`[DEBUG] Resolved input path: ${resolvedInputPath}`);
-      }
 
       // 入力画像ファイルを読み込み
       const inputImageBuffer = await fs.readFile(resolvedInputPath);
@@ -1176,15 +1118,7 @@ It should be run by an MCP client like Claude Desktop.
       const imageBuffer = Buffer.from(upscaledImage.bytesBase64Encoded, 'base64');
       
       if (return_base64) {
-        // Base64モード: 画像データを直接返す
-        if (process.env.DEBUG) {
-          console.error(`[DEBUG] Returning upscaled image as base64 data`);
-        }
-
-        // 警告: Base64モードのトークン消費について
-        console.error(`[DEPRECATED WARNING] return_base64=true is deprecated and will be removed in v1.0.0`);
-        console.error(`[WARNING] This mode consumes ~1,500 tokens per image. Use file save mode with Resources API instead.`);
-        console.error(`[INFO] The default mode (return_base64=false) now returns images via file:// URI for optimal performance.`);
+        console.error(`[WARNING] return_base64=true is deprecated and consumes ~1,500 tokens. Use file save mode (default) instead.`);
 
         return createImageResponse(
           imageBuffer,
@@ -1202,11 +1136,6 @@ It should be run by an MCP client like Claude Desktop.
         }
 
         await fs.writeFile(normalizedPath, imageBuffer);
-
-        if (process.env.DEBUG) {
-          console.error(`[DEBUG] Upscaled image saved to: ${normalizedPath}`);
-        }
-
         const displayPath = getDisplayPath(normalizedPath);
         const fileUri = this.resourceManager.getFileUri(normalizedPath);
 
@@ -1231,8 +1160,7 @@ It should be run by an MCP client like Claude Desktop.
         const errorCode = error.response?.status;
 
         if (process.env.DEBUG) {
-          console.error(`[DEBUG] API Error: ${errorMessage}`);
-          console.error(`[DEBUG] API Status Code: ${errorCode}`);
+          console.error(`[DEBUG] API Error ${errorCode}: ${errorMessage}`);
         }
 
         if (errorCode === 401 || errorCode === 403) {
@@ -1275,10 +1203,7 @@ It should be run by an MCP client like Claude Desktop.
 
     // デバッグログ
     if (process.env.DEBUG) {
-      console.error(`[DEBUG] Generating and upscaling image with prompt: ${prompt}`);
-      console.error(`[DEBUG] Aspect ratio: ${aspect_ratio}, Scale factor: ${scale_factor}`);
-      console.error(`[DEBUG] Model: ${model}`);
-      console.error(`[DEBUG] Final output path: ${output_path}`);
+      console.error(`[DEBUG] generate_and_upscale: model=${model}, aspect=${aspect_ratio}, scale=${scale_factor}`);
     }
 
     try {
@@ -1297,10 +1222,6 @@ It should be run by an MCP client like Claude Desktop.
       };
 
       const generateResult = await this.generateImage(generateArgs);
-      
-      if (process.env.DEBUG) {
-        console.error(`[DEBUG] Step 1 completed: Image generated at ${tempImagePath}`);
-      }
 
       // Step 2: Upscale the generated image
       const upscaleArgs: UpscaleImageArgs = {
@@ -1316,18 +1237,8 @@ It should be run by an MCP client like Claude Desktop.
       // Step 3: Clean up temporary file
       try {
         await fs.unlink(tempImagePath);
-        if (process.env.DEBUG) {
-          console.error(`[DEBUG] Temporary file cleaned up: ${tempImagePath}`);
-        }
       } catch (cleanupError) {
-        // Non-critical error, just log it
-        if (process.env.DEBUG) {
-          console.error(`[DEBUG] Warning: Failed to clean up temporary file: ${tempImagePath}`);
-        }
-      }
-
-      if (process.env.DEBUG) {
-        console.error(`[DEBUG] Step 2 completed: Image upscaled and saved to final location`);
+        // Non-critical error, ignore
       }
 
       if (return_base64) {
@@ -1510,9 +1421,7 @@ It should be run by an MCP client like Claude Desktop.
     }
 
     if (process.env.DEBUG) {
-      console.error(`[DEBUG] Customizing image with prompt: ${prompt}`);
-      console.error(`[DEBUG] Has control: ${hasControl}, Has subject: ${hasSubject}, Has style: ${hasStyle}`);
-      console.error(`[DEBUG] Model: ${model}`);
+      console.error(`[DEBUG] customize_image: model=${model}, ctrl=${hasControl}, subj=${hasSubject}, style=${hasStyle}`);
     }
 
     // Build referenceImages array
@@ -1657,18 +1566,11 @@ It should be run by an MCP client like Claude Desktop.
     }
 
     if (process.env.DEBUG) {
-      console.error(`[DEBUG] Reference images count: ${referenceImages.length}`);
-      console.error(`[DEBUG] Request body: ${JSON.stringify(requestBody, null, 2)}`);
+      console.error(`[DEBUG] Reference images structure:`);
+      referenceImages.forEach((ref, idx) => {
+        console.error(`[DEBUG]   Ref ${idx}: type=${ref.referenceType}, id=${ref.referenceId}`);
+      });
     }
-
-    // Always log reference images structure for debugging control image issues
-    console.error(`[DEBUG customize_image] Reference images count: ${referenceImages.length}`);
-    referenceImages.forEach((ref, idx) => {
-      console.error(`[DEBUG customize_image] Ref ${idx}: type=${ref.referenceType}, id=${ref.referenceId}, hasImage=${!!ref.referenceImage}, hasConfig=${!!ref.controlImageConfig || !!ref.subjectImageConfig || !!ref.styleImageConfig}`);
-      if (ref.referenceImage) {
-        console.error(`[DEBUG customize_image] Ref ${idx} image: hasBytes=${!!ref.referenceImage.bytesBase64Encoded}, bytesLength=${ref.referenceImage.bytesBase64Encoded?.substring(0, 50)}...`);
-      }
-    });
 
     try {
       // OAuth2 access token
@@ -1682,10 +1584,6 @@ It should be run by an MCP client like Claude Desktop.
       // Get project ID and build API URL
       const projectId = await getProjectId(this.auth);
       const apiUrl = getImagenApiUrl(projectId, model, region);
-
-      console.error(`[DEBUG customize_image] API URL: ${apiUrl}`);
-      console.error(`[DEBUG customize_image] Model: ${model}`);
-      console.error(`[DEBUG customize_image] Full request body: ${JSON.stringify(requestBody, null, 2)}`);
 
       const response = await axios.post<GoogleImagenResponse>(
         apiUrl,
@@ -1709,10 +1607,7 @@ It should be run by an MCP client like Claude Desktop.
       const infoText = `Image customized successfully!\n\nPrompt: ${prompt}\nAspect ratio: ${aspect_ratio}\nModel: ${model}\nReference types: ${hasControl ? 'control ' : ''}${hasSubject ? 'subject ' : ''}${hasStyle ? 'style' : ''}`;
 
       if (return_base64) {
-        // Base64モード
-        console.error(`[DEPRECATED WARNING] return_base64=true is deprecated and will be removed in v1.0.0`);
-        console.error(`[WARNING] This mode consumes ~1,500 tokens per image. Use file save mode with Resources API instead.`);
-        console.error(`[INFO] The default mode (return_base64=false) now returns images via file:// URI for optimal performance.`);
+        console.error(`[WARNING] return_base64=true is deprecated and consumes ~1,500 tokens. Use file save mode (default) instead.`);
 
         return createImageResponse(
           imageBuffer,
@@ -1730,11 +1625,6 @@ It should be run by an MCP client like Claude Desktop.
         }
 
         await fs.writeFile(normalizedPath, imageBuffer);
-
-        if (process.env.DEBUG) {
-          console.error(`[DEBUG] Image saved to: ${normalizedPath}`);
-        }
-
         const displayPath = getDisplayPath(normalizedPath);
         const fileUri = this.resourceManager.getFileUri(normalizedPath);
 
@@ -1759,8 +1649,7 @@ It should be run by an MCP client like Claude Desktop.
         const errorCode = error.response?.status;
 
         if (process.env.DEBUG) {
-          console.error(`[DEBUG] API Error: ${errorMessage}`);
-          console.error(`[DEBUG] API Status Code: ${errorCode}`);
+          console.error(`[DEBUG] API Error ${errorCode}: ${errorMessage}`);
         }
 
         if (errorCode === 401 || errorCode === 403) {
@@ -1781,11 +1670,6 @@ It should be run by an MCP client like Claude Desktop.
 
   private async listSemanticClasses(args: ListSemanticClassesArgs) {
     const { category, search, ids } = args;
-
-    if (process.env.DEBUG) {
-      console.error(`[DEBUG] Listing semantic classes`);
-      console.error(`[DEBUG] Category: ${category}, Search: ${search}, IDs: ${ids}`);
-    }
 
     try {
       let results = SEMANTIC_CLASSES;
@@ -1912,10 +1796,6 @@ It should be run by an MCP client like Claude Desktop.
       try {
         const resources = await this.resourceManager.listResources();
 
-        if (process.env.DEBUG) {
-          console.error(`[DEBUG] Listing ${resources.length} resources`);
-        }
-
         return {
           resources: resources.map(r => ({
             uri: r.uri,
@@ -1939,11 +1819,6 @@ It should be run by an MCP client like Claude Desktop.
     this.server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
       try {
         const uri = request.params.uri;
-
-        if (process.env.DEBUG) {
-          console.error(`[DEBUG] Reading resource: ${uri}`);
-        }
-
         const buffer = await this.resourceManager.readResource(uri);
         const metadata = await this.resourceManager.getResourceMetadata(uri);
 
