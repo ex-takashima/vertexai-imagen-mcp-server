@@ -1206,13 +1206,16 @@ It should be run by an MCP client like Claude Desktop.
       console.error(`[DEBUG] generate_and_upscale: model=${model}, aspect=${aspect_ratio}, scale=${scale_factor}`);
     }
 
+    // 一時ファイルパスを絶対パスで保持（削除時に確実に参照できるように）
+    const tempImageTimestamp = Date.now();
+    const tempImagePath = `temp_generated_${tempImageTimestamp}.png`;
+    const tempImageAbsPath = await normalizeAndValidatePath(tempImagePath);
+
     try {
       // Step 1: Generate the original image
-      const tempImagePath = `temp_generated_${Date.now()}.png`;
-      
       const generateArgs: GenerateImageArgs = {
         prompt,
-        output_path: tempImagePath,
+        output_path: tempImageAbsPath,
         aspect_ratio,
         safety_level,
         person_generation,
@@ -1225,7 +1228,7 @@ It should be run by an MCP client like Claude Desktop.
 
       // Step 2: Upscale the generated image
       const upscaleArgs: UpscaleImageArgs = {
-        input_path: tempImagePath,
+        input_path: tempImageAbsPath,
         output_path: return_base64 ? undefined : output_path,
         scale_factor,
         return_base64,
@@ -1236,7 +1239,7 @@ It should be run by an MCP client like Claude Desktop.
 
       // Step 3: Clean up temporary file
       try {
-        await fs.unlink(tempImagePath);
+        await fs.unlink(tempImageAbsPath);
       } catch (cleanupError) {
         // Non-critical error, ignore
       }
@@ -1256,10 +1259,35 @@ It should be run by an MCP client like Claude Desktop.
           ],
         };
       } else {
-        // ファイル保存モード
-        const normalizedPath = await normalizeAndValidatePath(output_path);
+        // ファイル保存モード - upscaleImageが保存した実際のURI/パスを取得
+        const resourceContent = upscaleResult.content.find(
+          (c): c is { type: 'resource'; resource: { uri: string; mimeType: string; text: string } } =>
+            c.type === 'resource'
+        );
+
+        if (!resourceContent) {
+          throw new Error('Failed to get resource from upscale result');
+        }
+
+        const actualFileUri = resourceContent.resource.uri;
+
+        // URIから実際のファイルパスを解決
+        let normalizedPath: string;
+        try {
+          const resolvedPath = this.resourceManager.resolveUri(actualFileUri);
+          if (!resolvedPath) {
+            throw new Error(`Invalid file URI: ${actualFileUri}`);
+          }
+          normalizedPath = resolvedPath;
+        } catch (error) {
+          throw new McpError(
+            ErrorCode.InternalError,
+            `Failed to resolve upscaled image path: ${error instanceof Error ? error.message : String(error)}`
+          );
+        }
+
         const displayPath = getDisplayPath(normalizedPath);
-        const fileUri = this.resourceManager.getFileUri(normalizedPath);
+        const fileUri = actualFileUri;  // upscaleImageが決定したURIを使用
 
         // upscaleResult から画像のメタ情報を取得
         const mimeType = upscaleResult.content[0]?.text?.match(/MIME type: ([\w\/]+)/)?.[1] || 'image/png';
@@ -1283,13 +1311,12 @@ It should be run by an MCP client like Claude Desktop.
       }
     } catch (error) {
       // Try to clean up temporary file if it exists
-      const tempImagePath = `temp_generated_${Date.now()}.png`;
       try {
-        await fs.unlink(tempImagePath);
+        await fs.unlink(tempImageAbsPath);
       } catch {
         // Ignore cleanup errors
       }
-      
+
       throw error;
     }
   }
