@@ -38,8 +38,17 @@ import type {
   GenerateAndUpscaleImageArgs,
   ListGeneratedImagesArgs,
   EditImageArgs,
-  CustomizeImageArgs
+  CustomizeImageArgs,
+  ListSemanticClassesArgs
 } from './types/tools.js';
+import {
+  SEMANTIC_CLASSES,
+  CATEGORIES,
+  COMMON_CLASS_IDS,
+  filterByCategory,
+  searchByKeyword,
+  getClassesByIds
+} from './data/semantic-classes.js';
 
 const require = createRequire(import.meta.url);
 const { version: PACKAGE_VERSION } = require('../package.json') as { version: string };
@@ -53,6 +62,7 @@ const TOOL_GENERATE_AND_UPSCALE_IMAGE = "generate_and_upscale_image";
 const TOOL_LIST_GENERATED_IMAGES = "list_generated_images";
 const TOOL_EDIT_IMAGE = "edit_image";
 const TOOL_CUSTOMIZE_IMAGE = "customize_image";
+const TOOL_LIST_SEMANTIC_CLASSES = "list_semantic_classes";
 
 class GoogleImagenMCPServer {
   private server: Server;
@@ -519,6 +529,31 @@ It should be run by an MCP client like Claude Desktop.
               required: ["prompt"],
               description: "Provide at least one of: control_image (with control_type), subject_images (with subject_description and subject_type), or style_image. You can combine multiple reference types for advanced customization.",
             },
+          },
+          {
+            name: TOOL_LIST_SEMANTIC_CLASSES,
+            description: "List semantic segmentation class IDs for use with edit_image's mask_mode='semantic'. Returns a searchable database of 194 object classes (0-193) supported by Imagen API for semantic masking.",
+            inputSchema: {
+              type: "object",
+              properties: {
+                category: {
+                  type: "string",
+                  description: "Filter by category (e.g., '人物', '動物', '乗り物', '家具', '電化製品', '食品', '建物・構造', '自然', '屋外設備', 'スポーツ用品', 'アクセサリー', 'その他')",
+                },
+                search: {
+                  type: "string",
+                  description: "Search by keyword in Japanese or English (e.g., '車', 'car', '人', 'person')",
+                },
+                ids: {
+                  type: "array",
+                  items: {
+                    type: "integer"
+                  },
+                  description: "Get details for specific class IDs (e.g., [125, 175, 176])",
+                }
+              },
+              description: "Filter options: category (by category), search (keyword search), ids (specific IDs). If no parameters provided, returns all classes grouped by category with commonly used IDs highlighted."
+            },
           }
         ],
       };
@@ -541,6 +576,8 @@ It should be run by an MCP client like Claude Desktop.
             return await this.customizeImage(args as unknown as CustomizeImageArgs);
           case TOOL_LIST_GENERATED_IMAGES:
             return await this.listGeneratedImages(args as unknown as ListGeneratedImagesArgs);
+          case TOOL_LIST_SEMANTIC_CLASSES:
+            return await this.listSemanticClasses(args as unknown as ListSemanticClassesArgs);
           default:
             throw new McpError(
               ErrorCode.MethodNotFound,
@@ -1709,6 +1746,133 @@ It should be run by an MCP client like Claude Desktop.
         throw new McpError(ErrorCode.InternalError, `Google Imagen API error: ${errorMessage}`);
       }
       throw error;
+    }
+  }
+
+  private async listSemanticClasses(args: ListSemanticClassesArgs) {
+    const { category, search, ids } = args;
+
+    if (process.env.DEBUG) {
+      console.error(`[DEBUG] Listing semantic classes`);
+      console.error(`[DEBUG] Category: ${category}, Search: ${search}, IDs: ${ids}`);
+    }
+
+    try {
+      let results = SEMANTIC_CLASSES;
+      let filterDescription = "";
+
+      // Filter by IDs if provided
+      if (ids && ids.length > 0) {
+        const classes = getClassesByIds(ids);
+        if (classes.length === 0) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `No semantic classes found for IDs: ${ids.join(', ')}\n\nValid IDs range from 0 to 193.`
+              }
+            ],
+          };
+        }
+
+        const classesText = classes
+          .map(cls => `${cls.id}: ${cls.name} (${cls.nameEn}) - カテゴリ: ${cls.category}`)
+          .join('\n');
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `セマンティッククラス詳細 (${classes.length}件):\n\n${classesText}\n\n💡 これらのIDを edit_image の mask_classes パラメータに指定して使用できます。`
+            }
+          ],
+        };
+      }
+
+      // Filter by category
+      if (category) {
+        results = filterByCategory(category);
+        filterDescription = `カテゴリ「${category}」`;
+
+        if (results.length === 0) {
+          const availableCategories = CATEGORIES.join(', ');
+          return {
+            content: [
+              {
+                type: "text",
+                text: `カテゴリ「${category}」に該当するクラスが見つかりません。\n\n利用可能なカテゴリ:\n${availableCategories}`
+              }
+            ],
+          };
+        }
+      }
+
+      // Filter by keyword
+      if (search) {
+        results = searchByKeyword(search);
+        filterDescription = filterDescription
+          ? `${filterDescription}、キーワード「${search}」`
+          : `キーワード「${search}」`;
+
+        if (results.length === 0) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `「${search}」に一致するクラスが見つかりません。\n\n💡 ヒント: 日本語または英語で検索できます（例: 「車」「car」「人物」「person」）`
+              }
+            ],
+          };
+        }
+      }
+
+      // Display results
+      if (filterDescription) {
+        // Filtered results
+        const classesText = results
+          .map(cls => `  ${cls.id}: ${cls.name} (${cls.nameEn})`)
+          .join('\n');
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `セマンティッククラス検索結果 (${filterDescription}):\n\n${classesText}\n\n検索結果: ${results.length}件\n\n💡 これらのIDを edit_image の mask_classes パラメータに指定して使用できます。`
+            }
+          ],
+        };
+      }
+
+      // No filters - show all classes grouped by category
+      const commonClassesText = COMMON_CLASS_IDS
+        .map(id => {
+          const cls = SEMANTIC_CLASSES.find(c => c.id === id);
+          return cls ? `  ${cls.id}: ${cls.name} (${cls.nameEn})` : '';
+        })
+        .filter(Boolean)
+        .join('\n');
+
+      const groupedByCategory = CATEGORIES.map(cat => {
+        const classes = filterByCategory(cat);
+        const classesText = classes
+          .map(cls => `  ${cls.id}: ${cls.name} (${cls.nameEn})`)
+          .join('\n');
+        return `【${cat}】\n${classesText}`;
+      }).join('\n\n');
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: `セマンティッククラスID一覧 (全${SEMANTIC_CLASSES.length}クラス)\n\n━━━━━━━━━━━━━━━━━━━━\n⭐ よく使われるクラスID\n━━━━━━━━━━━━━━━━━━━━\n${commonClassesText}\n\n━━━━━━━━━━━━━━━━━━━━\n📋 全クラス一覧（カテゴリ別）\n━━━━━━━━━━━━━━━━━━━━\n\n${groupedByCategory}\n\n💡 使い方:\n• カテゴリで絞り込み: category パラメータを指定\n• キーワード検索: search パラメータで日本語/英語検索\n• 特定IDの詳細: ids パラメータで配列指定 (例: [125, 175, 176])\n• edit_image ツールの mask_classes パラメータで使用可能`
+          }
+        ],
+      };
+    } catch (error) {
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Failed to list semantic classes: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 

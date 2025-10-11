@@ -93,3 +93,9 @@ export interface CustomizeImageArgs {
   model?: "imagen-4.0-ultra-generate-preview-06-06" | "imagen-4.0-fast-generate-preview-06-06" | "imagen-4.0-generate-preview-06-06" | "imagen-3.0-generate-002" | "imagen-3.0-fast-generate-001";
   region?: string;
 }
+
+export interface ListSemanticClassesArgs {
+  category?: string;
+  search?: string;
+  ids?: number[];
+}
