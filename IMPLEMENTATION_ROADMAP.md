@@ -65,9 +65,10 @@
    - 許可値: `"1K"` | `"2K"`
    - デフォルト: `"1K"`
    - 用途: 生成画像の出力解像度を指定
-   - **重要な制約**: `"2K"` は以下のモデルのみ対応
+   - **重要な制約**: `"2K"` は以下のImagen-4.0モデルのみ対応
      - `imagen-4.0-generate-001` （Imagen-4 標準モデル）
-     - `imagen-4.0-ultra-generate-001` （Imagen-4 Ultra 高品質モデル）
+     - `imagen-4.0-fast-generate-001` （Imagen-4 Fast 高速モデル）
+     - `imagen-4.0-ultra-generate-001` （Imagen-4 Ultra 最高品質モデル）
    - Imagen-3系モデル（`imagen-3.0-*`）では1Kのみサポート
 
 2. **対象ツール**
@@ -130,8 +131,8 @@
 
 **注意点**:
 - **モデル制約**: 2K は Imagen-4.0 モデルのみサポート
-  - 対応: `imagen-4.0-generate-001`, `imagen-4.0-ultra-generate-001`
-  - 非対応: Imagen-3系モデル（`imagen-3.0-generate-002`, `imagen-3.0-fast-generate-001`, `imagen-3.0-capability-001` など）
+  - 対応: `imagen-4.0-generate-001`, `imagen-4.0-fast-generate-001`, `imagen-4.0-ultra-generate-001`
+  - 非対応: Imagen-3系モデル（`imagen-3.0-generate-002`, `imagen-3.0-fast-generate-001`, `imagen-3.0-capability-001`）
 - 2K 生成は 1K より時間がかかる可能性あり
 - コスト面での違いがあるか要確認（Google Cloud の課金体系）
 - `upscale_image` ツールとの使い分けを明確化

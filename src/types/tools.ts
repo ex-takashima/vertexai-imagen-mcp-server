@@ -11,7 +11,7 @@ export interface GenerateImageArgs {
   safety_level?: "BLOCK_NONE" | "BLOCK_ONLY_HIGH" | "BLOCK_MEDIUM_AND_ABOVE" | "BLOCK_LOW_AND_ABOVE";
   person_generation?: "DONT_ALLOW" | "ALLOW_ADULT" | "ALLOW_ALL";
   language?: "auto" | "en" | "zh" | "zh-TW" | "hi" | "ja" | "ko" | "pt" | "es";
-  model?: "imagen-4.0-ultra-generate-preview-06-06" | "imagen-4.0-fast-generate-preview-06-06" | "imagen-4.0-generate-preview-06-06" | "imagen-3.0-generate-002" | "imagen-3.0-fast-generate-001";
+  model?: "imagen-4.0-ultra-generate-001" | "imagen-4.0-fast-generate-001" | "imagen-4.0-generate-001" | "imagen-3.0-generate-002" | "imagen-3.0-fast-generate-001";
   region?: string;
   sample_count?: number;
   sample_image_size?: "1K" | "2K";
@@ -36,7 +36,7 @@ export interface GenerateAndUpscaleImageArgs {
   safety_level?: "BLOCK_NONE" | "BLOCK_ONLY_HIGH" | "BLOCK_MEDIUM_AND_ABOVE" | "BLOCK_LOW_AND_ABOVE";
   person_generation?: "DONT_ALLOW" | "ALLOW_ADULT" | "ALLOW_ALL";
   language?: "auto" | "en" | "zh" | "zh-TW" | "hi" | "ja" | "ko" | "pt" | "es";
-  model?: "imagen-4.0-ultra-generate-preview-06-06" | "imagen-4.0-fast-generate-preview-06-06" | "imagen-4.0-generate-preview-06-06" | "imagen-3.0-generate-002" | "imagen-3.0-fast-generate-001";
+  model?: "imagen-4.0-ultra-generate-001" | "imagen-4.0-fast-generate-001" | "imagen-4.0-generate-001" | "imagen-3.0-generate-002" | "imagen-3.0-fast-generate-001";
   region?: string;
   sample_image_size?: "1K" | "2K";
 }
@@ -62,7 +62,7 @@ export interface EditImageArgs {
   guidance_scale?: number;
   sample_count?: number;
   negative_prompt?: string;
-  model?: string;
+  model?: "imagen-3.0-capability-001";
   region?: string;
   sample_image_size?: "1K" | "2K";
 }
@@ -95,7 +95,7 @@ export interface CustomizeImageArgs {
   language?: "auto" | "en" | "zh" | "zh-TW" | "hi" | "ja" | "ko" | "pt" | "es";
   negative_prompt?: string;
   sample_count?: number;
-  model?: "imagen-4.0-ultra-generate-preview-06-06" | "imagen-4.0-fast-generate-preview-06-06" | "imagen-4.0-generate-preview-06-06" | "imagen-3.0-generate-002" | "imagen-3.0-fast-generate-001";
+  model?: "imagen-3.0-capability-001";
   region?: string;
   sample_image_size?: "1K" | "2K";
 }

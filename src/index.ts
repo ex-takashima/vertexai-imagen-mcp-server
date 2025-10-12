@@ -204,7 +204,7 @@ It should be run by an MCP client like Claude Desktop.
                 },
                 model: {
                   type: "string",
-                  enum: ["imagen-4.0-ultra-generate-preview-06-06", "imagen-4.0-fast-generate-preview-06-06", "imagen-4.0-generate-preview-06-06", "imagen-3.0-generate-002", "imagen-3.0-fast-generate-001"],
+                  enum: ["imagen-4.0-ultra-generate-001", "imagen-4.0-fast-generate-001", "imagen-4.0-generate-001", "imagen-3.0-generate-002", "imagen-3.0-fast-generate-001"],
                   description: "Imagen model to use (default: imagen-3.0-generate-002)",
                 },
                 region: {
@@ -307,7 +307,7 @@ It should be run by an MCP client like Claude Desktop.
                 },
                 model: {
                   type: "string",
-                  enum: ["imagen-3.0-capability-001", "imagegeneration@006", "imagegeneration@005", "imagegeneration@002"],
+                  enum: ["imagen-3.0-capability-001"],
                   description: "Imagen edit model to use (default: imagen-3.0-capability-001)",
                 },
                 region: {
@@ -408,7 +408,7 @@ It should be run by an MCP client like Claude Desktop.
                 },
                 model: {
                   type: "string",
-                  enum: ["imagen-4.0-ultra-generate-preview-06-06", "imagen-4.0-fast-generate-preview-06-06", "imagen-4.0-generate-preview-06-06", "imagen-3.0-generate-002", "imagen-3.0-fast-generate-001"],
+                  enum: ["imagen-4.0-ultra-generate-001", "imagen-4.0-fast-generate-001", "imagen-4.0-generate-001", "imagen-3.0-generate-002", "imagen-3.0-fast-generate-001"],
                   description: "Imagen model to use (default: imagen-3.0-generate-002)",
                 },
                 region: {
@@ -546,8 +546,8 @@ It should be run by an MCP client like Claude Desktop.
                 },
                 model: {
                   type: "string",
-                  enum: ["imagen-3.0-capability-001", "imagegeneration@006", "imagegeneration@005", "imagegeneration@002"],
-                  description: "Imagen model to use (default: imagen-3.0-capability-001)",
+                  enum: ["imagen-3.0-capability-001"],
+                  description: "Imagen customize model to use (default: imagen-3.0-capability-001)",
                 },
                 region: {
                   type: "string",
@@ -656,11 +656,11 @@ It should be run by an MCP client like Claude Desktop.
 
     // Validate sample_image_size compatibility with model
     if (sample_image_size === "2K") {
-      const supports2K = model.startsWith("imagen-4.0-generate-") || model.startsWith("imagen-4.0-ultra-generate-");
+      const supports2K = model.startsWith("imagen-4.0-");
       if (!supports2K) {
         throw new McpError(
           ErrorCode.InvalidParams,
-          `2K resolution is only supported by Imagen-4.0 models (imagen-4.0-generate-*, imagen-4.0-ultra-generate-*). ` +
+          `2K resolution is only supported by Imagen-4.0 models (imagen-4.0-*). ` +
           `Current model "${model}" does not support 2K. Please use "1K" or switch to an Imagen-4.0 model.`
         );
       }
@@ -885,7 +885,7 @@ It should be run by an MCP client like Claude Desktop.
       // Edit models don't currently support 2K - Imagen-3 capability models only
       throw new McpError(
         ErrorCode.InvalidParams,
-        `2K resolution is only supported by Imagen-4.0 generation models (imagen-4.0-generate-*, imagen-4.0-ultra-generate-*). ` +
+        `2K resolution is only supported by Imagen-4.0 generation models (imagen-4.0-*). ` +
         `The edit_image tool uses Imagen-3 capability models which do not support 2K. Please use "1K" or omit sample_image_size.`
       );
     }
@@ -1367,11 +1367,11 @@ It should be run by an MCP client like Claude Desktop.
 
     // Validate sample_image_size compatibility with model
     if (sample_image_size === "2K") {
-      const supports2K = model.startsWith("imagen-4.0-generate-") || model.startsWith("imagen-4.0-ultra-generate-");
+      const supports2K = model.startsWith("imagen-4.0-");
       if (!supports2K) {
         throw new McpError(
           ErrorCode.InvalidParams,
-          `2K resolution is only supported by Imagen-4.0 models (imagen-4.0-generate-*, imagen-4.0-ultra-generate-*). ` +
+          `2K resolution is only supported by Imagen-4.0 models (imagen-4.0-*). ` +
           `Current model "${model}" does not support 2K. Please use "1K" or switch to an Imagen-4.0 model.`
         );
       }
@@ -1591,7 +1591,7 @@ It should be run by an MCP client like Claude Desktop.
       // Customize models don't currently support 2K - Imagen-3 capability models only
       throw new McpError(
         ErrorCode.InvalidParams,
-        `2K resolution is only supported by Imagen-4.0 generation models (imagen-4.0-generate-*, imagen-4.0-ultra-generate-*). ` +
+        `2K resolution is only supported by Imagen-4.0 generation models (imagen-4.0-*). ` +
         `The customize_image tool uses Imagen-3 capability models which do not support 2K. Please use "1K" or omit sample_image_size.`
       );
     }
