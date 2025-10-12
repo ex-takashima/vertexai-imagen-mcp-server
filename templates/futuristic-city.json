@@ -1,0 +1,23 @@
+{
+  "name": "futuristic-city",
+  "description": "近未来都市のテンプレート。時間帯とスタイルをカスタマイズ可能",
+  "template": "futuristic {style} city at {time_of_day}, {atmosphere}, advanced technology, {lighting} lighting, {color_scheme} color palette, cinematic high quality scene",
+  "variables": [
+    "style",
+    "time_of_day",
+    "atmosphere",
+    "lighting",
+    "color_scheme"
+  ],
+  "default_params": {
+    "aspect_ratio": "16:9",
+    "model": "imagen-3.0-generate-002"
+  },
+  "tags": [
+    "city",
+    "futuristic",
+    "urban"
+  ],
+  "created_at": "2025-10-12T13:49:51.809Z",
+  "updated_at": "2025-10-12T13:49:51.810Z"
+}
