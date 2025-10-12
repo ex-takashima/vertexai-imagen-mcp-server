@@ -262,23 +262,67 @@
    }
    ```
 
-2. **画像メタデータへのUUID埋め込み**
+2. **画像メタデータへのUUID + ハッシュ埋め込み（レベル選択可能）**
    - **対応フォーマット**:
      - PNG: テキストチャンク（tEXt/zTXt）を使用
      - JPEG: EXIF UserComment フィールドを使用
      - WebP: EXIF/XMP メタデータを使用
 
-   - **埋め込みデータ構造**:
+   - **埋め込みレベル（環境変数で選択）**:
+
+     **Level 1: "minimal"（セキュリティ重視）**
      ```json
      {
        "vertexai_imagen_uuid": "550e8400-e29b-41d4-a716-446655440000",
+       "params_hash": "a7f5c3d8..."
+     }
+     ```
+     - サイズ: 約100バイト
+     - 用途: 機密情報を含むプロンプトの場合
+     - メリット: 最小限のセキュリティリスク、最小ファイルサイズ
+     - デメリット: DB必須（DB紛失時は再現不可）
+
+     **Level 2: "standard"（バランス型、デフォルト）**
+     ```json
+     {
+       "vertexai_imagen_uuid": "550e8400-e29b-41d4-a716-446655440000",
+       "params_hash": "a7f5c3d8...",
+       "tool_name": "generate_image",
+       "model": "imagen-3.0-generate-001",
+       "created_at": "2025-10-12T10:30:00Z",
+       "aspect_ratio": "16:9",
+       "sample_image_size": "1K"
+     }
+     ```
+     - サイズ: 約200-300バイト
+     - 用途: 一般的な用途
+     - メリット: 基本情報は画像から確認可能、セキュリティとのバランス
+     - デメリット: プロンプトはDB必須
+
+     **Level 3: "full"（復元性重視）**
+     ```json
+     {
+       "vertexai_imagen_uuid": "550e8400-e29b-41d4-a716-446655440000",
+       "params_hash": "a7f5c3d8...",
        "tool_name": "generate_image",
        "prompt": "A serene mountain landscape...",
        "model": "imagen-3.0-generate-001",
        "created_at": "2025-10-12T10:30:00Z",
-       "aspect_ratio": "16:9",
-       "sample_image_size": "1K",
        "parameters": { /* 全パラメータ */ }
+     }
+     ```
+     - サイズ: 数KB（プロンプト長に依存）
+     - 用途: DB紛失リスクが高い環境、完全な自己完結性が必要な場合
+     - メリット: DB不要で完全復元可能、画像単体で自己完結
+     - デメリット: プロンプトが画像に埋め込まれる（セキュリティリスク）、ファイルサイズ増加
+
+   - **ハッシュ計算**:
+     ```typescript
+     import { createHash } from 'crypto';
+
+     function calculateParamsHash(params: object): string {
+       const paramsJson = JSON.stringify(params, Object.keys(params).sort());
+       return createHash('sha256').update(paramsJson).digest('hex');
      }
      ```
 
@@ -287,6 +331,7 @@
      - JPEG: `piexifjs` または `exiftool-vendored`
      - WebP: `sharp` metadata API（WebP EXIF対応）
      - 推奨: `sharp`（既に依存関係にあり、統一的なAPI）
+     - ハッシュ: Node.js 標準の `crypto` モジュール
 
 3. **データベース設計（UUIDベース）**
    ```sql
@@ -312,6 +357,9 @@
      -- 完全なパラメータ（JSON）
      parameters TEXT NOT NULL,
 
+     -- パラメータハッシュ（画像メタデータと同期、整合性検証用）
+     params_hash TEXT NOT NULL,
+
      -- ステータス
      success BOOLEAN DEFAULT 1,
      error_message TEXT,
@@ -323,6 +371,12 @@
      -- 検索用インデックス
      prompt_fts TEXT  -- Full-text search用
    );
+
+   -- インデックス作成
+   CREATE INDEX idx_images_created_at ON images(created_at DESC);
+   CREATE INDEX idx_images_tool_name ON images(tool_name);
+   CREATE INDEX idx_images_model ON images(model);
+   CREATE INDEX idx_images_params_hash ON images(params_hash);
 
    -- フルテキスト検索テーブル
    CREATE VIRTUAL TABLE images_fts USING fts5(
@@ -357,42 +411,59 @@
 5. **画像生成フローの統合**
    ```typescript
    async function generateImage(...) {
-     // 1. 各画像にUUIDを発行
+     // 1. パラメータのハッシュ計算
+     const params = {
+       prompt,
+       model,
+       aspect_ratio,
+       safety_level,
+       person_generation,
+       // ... その他の全パラメータ
+     };
+     const paramsHash = calculateParamsHash(params);
+
+     // 2. 各画像にUUIDを発行
      const imageUUIDs = Array.from(
        { length: sample_count },
        () => randomUUID()
      );
 
-     // 2. API呼び出し
+     // 3. API呼び出し
      const response = await imagenAPI.generate(...);
 
-     // 3. 画像保存 + メタデータ埋め込み
+     // 4. 画像保存 + メタデータ埋め込み
      for (let i = 0; i < response.predictions.length; i++) {
        const imageData = response.predictions[i];
        const uuid = imageUUIDs[i];
 
-       // 画像バッファにメタデータを埋め込み
+       // 画像バッファに最小限のメタデータを埋め込み
        const imageWithMetadata = await embedMetadata(
          imageData,
          {
            vertexai_imagen_uuid: uuid,
-           tool_name: 'generate_image',
-           prompt: prompt,
-           model: model,
-           // ... その他のパラメータ
+           params_hash: paramsHash
          }
        );
 
        // ファイル保存
        await fs.writeFile(filePath, imageWithMetadata);
 
-       // 4. DB記録
+       // 5. DB記録（詳細情報はDBのみに保存）
        await db.run(
-         'INSERT INTO images (uuid, file_path, ...) VALUES (?, ?, ...)',
-         [uuid, filePath, ...]
+         'INSERT INTO images (uuid, file_path, tool_name, prompt, parameters, params_hash, ...) VALUES (?, ?, ?, ?, ?, ?, ...)',
+         [uuid, filePath, 'generate_image', prompt, JSON.stringify(params), paramsHash, ...]
        );
      }
    }
+   ```
+
+   **フロー概要**:
+   ```
+   パラメータ準備 → ハッシュ計算 → UUID発行 → API呼び出し
+        ↓
+   画像保存 + メタデータ埋め込み（UUID + ハッシュのみ）
+        ↓
+   DB記録（UUID + ハッシュ + 全パラメータ + その他メタデータ）
    ```
 
 6. **新規ツール**
@@ -401,26 +472,40 @@
      - ソート: created_at DESC
      - ページネーション対応
      - 出力: UUID, prompt, created_at, file_path など
+     - DB必須
 
    - `get_history_by_uuid`: UUID指定で履歴詳細取得
      - 入力: uuid
      - 出力: 完全なパラメータ、画像パス、メタデータ
-     - **DB不要**: 画像メタデータからも情報取得可能
+     - 動作: DB優先、DB不在時は画像メタデータから取得（"full"レベルのみ）
 
    - `get_metadata_from_image`: 画像ファイルからメタデータ読み取り
      - 入力: image_path
-     - 出力: UUID、生成パラメータ、タイムスタンプ
-     - 用途: DBにない画像でも情報取得可能
+     - 出力: UUID、ハッシュ値、その他（埋め込みレベルに応じて）
+       - "minimal": UUID + ハッシュのみ
+       - "standard": UUID + ハッシュ + 基本パラメータ
+       - "full": UUID + ハッシュ + 全パラメータ
+     - 用途: 画像とDB記録の紐付け確認、メタデータ確認
+
+   - `verify_image_integrity`: 画像とDB記録の整合性検証
+     - 入力: uuid または image_path
+     - 動作: 画像メタデータのハッシュとDBのハッシュを比較
+     - 出力: 検証結果（一致/不一致）
+     - 用途: 改ざん検知、データ整合性確認
 
    - `regenerate_from_uuid`: UUID指定で再生成
      - 入力: uuid, override_params?
-     - 動作: DBまたは画像メタデータから元のパラメータ取得 → 再生成
+     - 動作:
+       - DB優先: DBから元のパラメータ取得 → 再生成
+       - DBなし + "full"レベル: 画像メタデータから取得 → 再生成
+       - DBなし + "minimal"/"standard": エラー（パラメータ不足）
      - 出力: 新しい画像（新しいUUIDを付与）
 
    - `search_history`: プロンプト検索（フルテキスト検索）
      - 入力: query, limit?, filters?
      - 出力: matching UUIDs, previews
      - FTS5による高速検索
+     - DB必須
 
    - `delete_history`: 履歴削除
      - 入力: uuid, delete_file? (default: false)
@@ -429,31 +514,56 @@
    - `sync_metadata_to_db`: 画像メタデータをDBに同期
      - 入力: directory?
      - 動作: 指定ディレクトリ内の画像をスキャン、メタデータ読み取り、DB更新
-     - 用途: DBを失った場合の復旧、他環境からの画像インポート
+     - 用途: 画像ファイルの存在確認、file_path の更新、DBの再構築
+     - 動作詳細:
+       - "minimal": UUID + ハッシュのみ同期、詳細パラメータは復元不可
+       - "standard": UUID + ハッシュ + 基本パラメータを同期、プロンプトは復元不可
+       - "full": 完全な復元が可能（全パラメータ含む）
 
 7. **自動記録フロー**
    ```
-   画像生成 → UUID発行 → API呼び出し → 画像保存 + メタデータ埋め込み → DB記録
-                ↓
+   パラメータ準備 → ハッシュ計算 → UUID発行 → API呼び出し
+        ↓
+   画像保存 + メタデータ埋め込み（UUID + ハッシュのみ）
+        ↓
+   DB記録（UUID + ハッシュ + 全パラメータ）
+        ↓
    成功/失敗両方を記録（エラーメッセージも保存）
    ```
 
 **メリット**:
 - **画像とDB履歴の完全な紐付け**: UUIDにより確実に対応関係を保証
-- **画像単体で完結**: メタデータから生成条件を確認可能（DB不要）
-- **柔軟な履歴管理**: DBを失っても画像から復旧可能
-- **再現性の保証**: パラメータの完全な記録
-- **高度な検索**: フルテキスト検索、複数条件フィルタ
-- **トラブルシューティング**: 画像ファイルだけで問題を特定可能
+- **柔軟性**: 用途に応じて埋め込みレベルを選択可能
+  - セキュリティ重視 → "minimal"
+  - バランス型 → "standard"（デフォルト）
+  - 復元性重視 → "full"
+- **整合性検証**: ハッシュ値でDB記録との整合性を検証可能
+  - 改ざん検知
+  - データの一貫性確認
+  - 全レベルで利用可能
+- **再現性の保証**: パラメータはDBに完全記録
+  - "minimal"/"standard": DB必須
+  - "full": 画像単体で完全復元可能
+- **高度な検索**: フルテキスト検索、複数条件フィルタ（DB経由）
+- **トラブルシューティング**: UUIDでDB記録を迅速に特定
 - **コスト分析**: 生成回数、使用モデルの統計
-- **チーム共有**: 画像ファイル共有時にメタデータも伝達
 
 **考慮事項**:
-- **メタデータサイズ**: 大きなJSON埋め込み時のファイルサイズ増加（数KB程度）
-- **プライバシー**: プロンプト内容が画像に埋め込まれる（環境変数で無効化可能にする）
+- **セキュリティとDB依存性のトレードオフ**:
+  - "minimal": 最高のセキュリティ、DB完全依存
+  - "standard": セキュリティとのバランス、プロンプトはDB必須
+  - "full": セキュリティリスクあり、DB依存なし
+  - 推奨: 機密情報を含む場合は "minimal" または "standard" を使用
+- **ファイルサイズ**:
+  - "minimal": 約100バイト
+  - "standard": 約200-300バイト
+  - "full": 数KB（プロンプト長に依存）
+- **DB管理**:
+  - "minimal"/"standard": DBの定期バックアップ推奨
+  - "full": DB紛失時も画像から復元可能
 - **互換性**: 古い画像（UUID未埋め込み）への対応
-  - `sync_metadata_to_db` でファイル名/パスベースの紐付けを試行
-  - または手動でUUID追加機能を提供
+  - `sync_metadata_to_db` で部分的な同期
+  - 埋め込みレベルに応じて復元可能な情報が異なる
 
 **環境変数設定**:
 ```bash
@@ -461,18 +571,44 @@
 VERTEXAI_IMAGEN_EMBED_METADATA=true
 
 # 埋め込むメタデータの詳細レベル
-# "minimal" - UUIDのみ
-# "standard" - UUID + 主要パラメータ（デフォルト）
-# "full" - UUID + 全パラメータ
+# "minimal" - UUID + ハッシュのみ（セキュリティ最重視）
+# "standard" - UUID + ハッシュ + 基本パラメータ（デフォルト、バランス型）
+# "full" - UUID + ハッシュ + 全パラメータ（復元性重視、セキュリティリスクあり）
 VERTEXAI_IMAGEN_METADATA_LEVEL=standard
 ```
 
+**レベル選択ガイドライン**:
+- **機密プロジェクト**: "minimal" - プロンプトが外部に漏れない
+- **一般的な用途**: "standard"（推奨） - 基本情報は確認でき、プロンプトは保護される
+- **DB管理が困難な環境**: "full" - 画像単体で完全復元可能だが、プロンプト漏洩リスクあり
+- **チーム共有**: "minimal" または "standard" - 画像共有時の安全性確保
+
 **変更ファイル**:
-- `src/utils/metadata.ts`: 新規作成（UUID生成、メタデータ埋め込み/読み取り）
-- `src/utils/database.ts`: 新規作成（SQLite接続、CRUD操作、FTS5検索）
+- `src/utils/metadata.ts`: 新規作成
+  - UUID生成（`randomUUID()`）
+  - パラメータハッシュ計算（SHA-256）
+  - 画像メタデータ埋め込み（レベル別に対応）
+    - "minimal": UUID + ハッシュのみ
+    - "standard": UUID + ハッシュ + 基本パラメータ
+    - "full": UUID + ハッシュ + 全パラメータ
+  - 画像メタデータ読み取り（レベル自動検出）
+  - ハッシュ検証機能
+- `src/utils/database.ts`: 新規作成
+  - SQLite接続、マイグレーション
+  - CRUD操作（INSERT, SELECT, UPDATE, DELETE）
+  - FTS5フルテキスト検索
+  - インデックス管理
 - `src/index.ts`: 各ツール関数にUUID管理とDB記録を統合
-- `src/types/tools.ts`: ImageRecord などの型定義追加
-- `package.json`: 依存関係追加（`better-sqlite3` など）
+  - 全生成ツールにUUID発行とハッシュ計算を追加
+  - メタデータ埋め込みとDB記録を統合（環境変数でレベル制御）
+  - 新規ツール追加（list_history, verify_image_integrity など）
+- `src/types/tools.ts`: 型定義追加
+  - ImageRecord インターフェース
+  - HistoryRecord インターフェース
+  - MetadataLevel 型（"minimal" | "standard" | "full"）
+- `package.json`: 依存関係追加
+  - `better-sqlite3`: SQLiteデータベース
+  - Sharp メタデータAPI活用（既存依存）
 
 ---
 
