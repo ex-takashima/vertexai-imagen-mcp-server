@@ -898,7 +898,61 @@ vertexai-imagen-mcp-server --version
 | `VERTEXAI_IMAGEN_OUTPUT_DIR`     | ❌  | 画像ファイルのデフォルト保存先ディレクトリ（省略時: ~/Downloads/vertexai-imagen-files） |
 | `VERTEXAI_IMAGEN_TEMPLATES_DIR`  | ❌  | プロンプトテンプレートの保存先ディレクトリ（省略時: `[VERTEXAI_IMAGEN_OUTPUT_DIR]/templates`） |
 | `VERTEXAI_IMAGEN_THUMBNAIL`      | ❌  | サムネイル生成の有効化（`true`で有効、省略時: 無効）。約30-50トークン/画像消費 |
+| `VERTEXAI_IMAGEN_DB`             | ❌  | 履歴データベースファイルのパス（省略時: `[VERTEXAI_IMAGEN_OUTPUT_DIR]/data/vertexai-imagen.db`） |
+| `VERTEXAI_IMAGEN_EMBED_METADATA` | ❌  | 画像へのメタデータ埋め込み（省略時: true）。`false` または `0` で無効化 |
+| `VERTEXAI_IMAGEN_METADATA_LEVEL` | ❌  | メタデータ埋め込みレベル: `minimal`, `standard`（デフォルト）, `full` |
 | `DEBUG`                          | ❌  | "1" を指定するとデバッグログ有効          |
+
+---
+
+## 📜 履歴管理・メタデータ機能
+
+このMCPサーバーは、生成した画像の履歴を自動的に記録し、後から検索・参照できる強力な履歴管理機能を提供します。
+
+### 主な機能
+
+- ✅ **自動履歴記録**: すべての画像生成をSQLiteデータベースに自動保存
+- ✅ **UUID追跡**: 各画像に一意のUUIDを割り当て、画像とデータベースを紐付け
+- ✅ **メタデータ埋め込み**: 画像ファイル自体にUUIDや生成パラメータを埋め込み（PNG/JPEG/WebP対応）
+- ✅ **フルテキスト検索**: プロンプトやパラメータで高速検索
+- ✅ **整合性検証**: ハッシュ値による画像の改ざん検出
+
+### 履歴管理ツール
+
+| ツール名 | 説明 |
+|---------|------|
+| `list_history` | 画像生成履歴の一覧表示（フィルタ、ソート、ページネーション対応） |
+| `get_history_by_uuid` | UUID指定で画像の詳細情報を取得 |
+| `search_history` | プロンプトやパラメータでフルテキスト検索 |
+| `get_metadata_from_image` | 画像ファイルから埋め込まれたメタデータを読み取り・検証 |
+
+### 使用例
+
+```text
+# 最近の履歴を表示
+「最近生成した画像の履歴を10件表示してください」
+
+# キーワードで検索
+「"sunset"というキーワードで画像を検索して」
+
+# 画像からメタデータを読み取る
+「sunset.pngに埋め込まれたメタデータを読み取って」
+
+# 特定のUUIDで詳細確認
+「UUID abc123... の画像の詳細情報を教えて」
+```
+
+### 詳細ドキュメント
+
+履歴機能の詳細については、以下のドキュメントを参照してください：
+
+📖 **[履歴機能・メタデータ管理ガイド](./docs/HISTORY_FEATURES.md)**
+
+- 環境変数の詳細説明
+- メタデータ埋め込みの仕組み
+- データベーススキーマ
+- トラブルシューティング
+- ベストプラクティス
 
 ---
 
