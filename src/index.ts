@@ -11,8 +11,12 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { GoogleAuth } from 'google-auth-library';
 import { createRequire } from 'module';
+import { homedir } from 'os';
+import { join } from 'path';
 import { getDefaultOutputDirectory } from './utils/path.js';
 import { ImageResourceManager } from './utils/resources.js';
+import { JobDatabase } from './utils/database.js';
+import { JobManager } from './utils/jobManager.js';
 import type {
   GenerateImageArgs,
   UpscaleImageArgs,
@@ -22,6 +26,13 @@ import type {
   CustomizeImageArgs,
   ListSemanticClassesArgs
 } from './types/tools.js';
+import type {
+  StartJobArgs,
+  CheckJobStatusArgs,
+  GetJobResultArgs,
+  CancelJobArgs,
+  ListJobsArgs
+} from './types/job.js';
 import type { ToolContext } from './tools/types.js';
 import { generateImage as handleGenerateImage } from './tools/generateImage.js';
 import { editImage as handleEditImage } from './tools/editImage.js';
@@ -30,6 +41,11 @@ import { upscaleImage as handleUpscaleImage } from './tools/upscaleImage.js';
 import { generateAndUpscaleImage as handleGenerateAndUpscaleImage } from './tools/generateAndUpscaleImage.js';
 import { listGeneratedImages as handleListGeneratedImages } from './tools/listGeneratedImages.js';
 import { listSemanticClasses as handleListSemanticClasses } from './tools/listSemanticClasses.js';
+import { startGenerationJob as handleStartGenerationJob } from './tools/startGenerationJob.js';
+import { checkJobStatus as handleCheckJobStatus } from './tools/checkJobStatus.js';
+import { getJobResult as handleGetJobResult } from './tools/getJobResult.js';
+import { cancelJob as handleCancelJob } from './tools/cancelJob.js';
+import { listJobs as handleListJobs } from './tools/listJobs.js';
 
 const require = createRequire(import.meta.url);
 const { version: PACKAGE_VERSION } = require('../package.json') as { version: string };
@@ -41,11 +57,18 @@ const TOOL_LIST_GENERATED_IMAGES = "list_generated_images";
 const TOOL_EDIT_IMAGE = "edit_image";
 const TOOL_CUSTOMIZE_IMAGE = "customize_image";
 const TOOL_LIST_SEMANTIC_CLASSES = "list_semantic_classes";
+const TOOL_START_GENERATION_JOB = "start_generation_job";
+const TOOL_CHECK_JOB_STATUS = "check_job_status";
+const TOOL_GET_JOB_RESULT = "get_job_result";
+const TOOL_CANCEL_JOB = "cancel_job";
+const TOOL_LIST_JOBS = "list_jobs";
 
 class GoogleImagenMCPServer {
   private server: Server;
   private auth: GoogleAuth;
   private resourceManager: ImageResourceManager;
+  private jobDatabase: JobDatabase;
+  private jobManager: JobManager;
   private toolContext: ToolContext;
 
   constructor() {
@@ -72,9 +95,24 @@ class GoogleImagenMCPServer {
     // リソースマネージャーの初期化
     const outputDir = getDefaultOutputDirectory();
     this.resourceManager = new ImageResourceManager(outputDir);
+
+    // ジョブデータベースの初期化
+    const dbPath = process.env.VERTEXAI_IMAGEN_DB || join(process.cwd(), 'data', 'vertexai-imagen.db');
+    this.jobDatabase = new JobDatabase(dbPath);
+
+    // ジョブマネージャーの初期化
+    const maxConcurrentJobs = parseInt(process.env.VERTEXAI_IMAGEN_MAX_CONCURRENT_JOBS || '2', 10);
+    this.jobManager = new JobManager(
+      this.jobDatabase,
+      this.auth,
+      this.resourceManager,
+      maxConcurrentJobs
+    );
+
     this.toolContext = {
       auth: this.auth,
-      resourceManager: this.resourceManager
+      resourceManager: this.resourceManager,
+      jobManager: this.jobManager
     };
 
     this.setupToolHandlers();
@@ -569,6 +607,85 @@ It should be run by an MCP client like Claude Desktop.
               },
               description: "Filter options: category (by category), search (keyword search), ids (specific IDs). If no parameters provided, returns all classes grouped by category with commonly used IDs highlighted."
             },
+          },
+          {
+            name: TOOL_START_GENERATION_JOB,
+            description: "Start an asynchronous image generation job. Returns a job ID immediately for tracking. Use this for long-running operations to avoid timeouts.",
+            inputSchema: {
+              type: "object",
+              properties: {
+                tool_type: {
+                  type: "string",
+                  enum: ["generate", "edit", "customize", "upscale", "generate_and_upscale"],
+                  description: "Type of image generation operation to perform",
+                },
+                params: {
+                  type: "object",
+                  description: "Parameters for the selected tool type (same as the corresponding tool's parameters)",
+                }
+              },
+              required: ["tool_type", "params"],
+            },
+          },
+          {
+            name: TOOL_CHECK_JOB_STATUS,
+            description: "Check the status of an asynchronous job. Use the job_id returned from start_generation_job.",
+            inputSchema: {
+              type: "object",
+              properties: {
+                job_id: {
+                  type: "string",
+                  description: "Job ID returned from start_generation_job",
+                }
+              },
+              required: ["job_id"],
+            },
+          },
+          {
+            name: TOOL_GET_JOB_RESULT,
+            description: "Get the result of a completed job. Use the job_id returned from start_generation_job.",
+            inputSchema: {
+              type: "object",
+              properties: {
+                job_id: {
+                  type: "string",
+                  description: "Job ID returned from start_generation_job",
+                }
+              },
+              required: ["job_id"],
+            },
+          },
+          {
+            name: TOOL_CANCEL_JOB,
+            description: "Cancel a pending or running job.",
+            inputSchema: {
+              type: "object",
+              properties: {
+                job_id: {
+                  type: "string",
+                  description: "Job ID to cancel",
+                }
+              },
+              required: ["job_id"],
+            },
+          },
+          {
+            name: TOOL_LIST_JOBS,
+            description: "List all jobs with optional filtering by status.",
+            inputSchema: {
+              type: "object",
+              properties: {
+                status: {
+                  type: "string",
+                  enum: ["pending", "running", "completed", "failed"],
+                  description: "Filter jobs by status (optional)",
+                },
+                limit: {
+                  type: "integer",
+                  description: "Maximum number of jobs to return (default: 50)",
+                }
+              },
+            },
           }
         ],
       };
@@ -593,6 +710,16 @@ It should be run by an MCP client like Claude Desktop.
             return await this.listGeneratedImages(args as unknown as ListGeneratedImagesArgs);
           case TOOL_LIST_SEMANTIC_CLASSES:
             return await this.listSemanticClasses(args as unknown as ListSemanticClassesArgs);
+          case TOOL_START_GENERATION_JOB:
+            return await this.startGenerationJob(args as unknown as StartJobArgs);
+          case TOOL_CHECK_JOB_STATUS:
+            return await this.checkJobStatus(args as unknown as CheckJobStatusArgs);
+          case TOOL_GET_JOB_RESULT:
+            return await this.getJobResult(args as unknown as GetJobResultArgs);
+          case TOOL_CANCEL_JOB:
+            return await this.cancelJob(args as unknown as CancelJobArgs);
+          case TOOL_LIST_JOBS:
+            return await this.listJobs(args as unknown as ListJobsArgs);
           default:
             throw new McpError(
               ErrorCode.MethodNotFound,
@@ -637,6 +764,26 @@ It should be run by an MCP client like Claude Desktop.
 
   private async listSemanticClasses(args: ListSemanticClassesArgs) {
     return await handleListSemanticClasses(this.toolContext, args);
+  }
+
+  private async startGenerationJob(args: StartJobArgs) {
+    return await handleStartGenerationJob(this.toolContext, args);
+  }
+
+  private async checkJobStatus(args: CheckJobStatusArgs) {
+    return await handleCheckJobStatus(this.toolContext, args);
+  }
+
+  private async getJobResult(args: GetJobResultArgs) {
+    return await handleGetJobResult(this.toolContext, args);
+  }
+
+  private async cancelJob(args: CancelJobArgs) {
+    return await handleCancelJob(this.toolContext, args);
+  }
+
+  private async listJobs(args: ListJobsArgs) {
+    return await handleListJobs(this.toolContext, args);
   }
 
   private setupResourceHandlers() {
