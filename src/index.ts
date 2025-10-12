@@ -216,6 +216,11 @@ It should be run by an MCP client like Claude Desktop.
                   minimum: 1,
                   maximum: 4,
                   description: "Number of images to generate (default: 1). Range: 1-4 for Imagen-3",
+                },
+                sample_image_size: {
+                  type: "string",
+                  enum: ["1K", "2K"],
+                  description: "Output resolution of generated image (default: 1K). 1K for faster generation, 2K for higher quality. IMPORTANT: 2K is only supported by Imagen-4.0 models (imagen-4.0-generate-*, imagen-4.0-ultra-generate-*). Imagen-3 models only support 1K.",
                 }
               },
               required: ["prompt"],
@@ -308,6 +313,11 @@ It should be run by an MCP client like Claude Desktop.
                 region: {
                   type: "string",
                   description: "Google Cloud region to use (default: from environment variable GOOGLE_REGION or us-central1)",
+                },
+                sample_image_size: {
+                  type: "string",
+                  enum: ["1K", "2K"],
+                  description: "Output resolution of generated image (default: 1K). IMPORTANT: edit_image uses Imagen-3 capability models which only support 1K. 2K is not supported for this tool.",
                 }
               },
               required: ["prompt"],
@@ -404,6 +414,11 @@ It should be run by an MCP client like Claude Desktop.
                 region: {
                   type: "string",
                   description: "Google Cloud region to use (default: from environment variable GOOGLE_REGION or us-central1)",
+                },
+                sample_image_size: {
+                  type: "string",
+                  enum: ["1K", "2K"],
+                  description: "Output resolution of generated image (default: 1K). 1K for faster generation, 2K for higher quality. IMPORTANT: 2K is only supported by Imagen-4.0 models (imagen-4.0-generate-*, imagen-4.0-ultra-generate-*). Imagen-3 models only support 1K.",
                 }
               },
               required: ["prompt"],
@@ -537,6 +552,11 @@ It should be run by an MCP client like Claude Desktop.
                 region: {
                   type: "string",
                   description: "Google Cloud region to use (default: from environment variable GOOGLE_REGION or us-central1)",
+                },
+                sample_image_size: {
+                  type: "string",
+                  enum: ["1K", "2K"],
+                  description: "Output resolution of generated image (default: 1K). IMPORTANT: customize_image uses Imagen-3 capability models which only support 1K. 2K is not supported for this tool.",
                 }
               },
               required: ["prompt"],
@@ -621,7 +641,8 @@ It should be run by an MCP client like Claude Desktop.
       language = "auto",
       model = "imagen-3.0-generate-002",
       region,
-      sample_count = 1
+      sample_count = 1,
+      sample_image_size
     } = args;
 
     if (!prompt || typeof prompt !== 'string') {
@@ -631,6 +652,18 @@ It should be run by an MCP client like Claude Desktop.
     // Validate sample_count range
     if (sample_count < 1 || sample_count > 4) {
       throw new McpError(ErrorCode.InvalidParams, "sample_count must be between 1 and 4");
+    }
+
+    // Validate sample_image_size compatibility with model
+    if (sample_image_size === "2K") {
+      const supports2K = model.startsWith("imagen-4.0-generate-") || model.startsWith("imagen-4.0-ultra-generate-");
+      if (!supports2K) {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          `2K resolution is only supported by Imagen-4.0 models (imagen-4.0-generate-*, imagen-4.0-ultra-generate-*). ` +
+          `Current model "${model}" does not support 2K. Please use "1K" or switch to an Imagen-4.0 model.`
+        );
+      }
     }
 
     // Normalize path BEFORE API call (to avoid wasting API quota on invalid paths)
@@ -656,7 +689,7 @@ It should be run by an MCP client like Claude Desktop.
             threshold: safety_level
           },
           {
-            category: "HARM_CATEGORY_HATE_SPEECH", 
+            category: "HARM_CATEGORY_HATE_SPEECH",
             threshold: safety_level
           },
           {
@@ -669,7 +702,8 @@ It should be run by an MCP client like Claude Desktop.
           }
         ],
         personGeneration: person_generation,
-        language: language
+        language: language,
+        ...(sample_image_size ? { sampleImageSize: sample_image_size } : {})
       }
     };
 
@@ -833,7 +867,8 @@ It should be run by an MCP client like Claude Desktop.
       sample_count = 1,
       negative_prompt,
       model = GOOGLE_IMAGEN_EDIT_MODEL,
-      region
+      region,
+      sample_image_size
     } = args;
 
     if (!prompt || typeof prompt !== 'string') {
@@ -843,6 +878,16 @@ It should be run by an MCP client like Claude Desktop.
     // Validate sample_count range
     if (sample_count < 1 || sample_count > 4) {
       throw new McpError(ErrorCode.InvalidParams, "sample_count must be between 1 and 4");
+    }
+
+    // Validate sample_image_size compatibility with model
+    if (sample_image_size === "2K") {
+      // Edit models don't currently support 2K - Imagen-3 capability models only
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        `2K resolution is only supported by Imagen-4.0 generation models (imagen-4.0-generate-*, imagen-4.0-ultra-generate-*). ` +
+        `The edit_image tool uses Imagen-3 capability models which do not support 2K. Please use "1K" or omit sample_image_size.`
+      );
     }
 
     // Normalize path BEFORE API call (for single sample, or base path for multiple samples)
@@ -1001,6 +1046,10 @@ It should be run by an MCP client like Claude Desktop.
 
     if (sample_count) {
       requestBody.parameters.sampleCount = sample_count;
+    }
+
+    if (sample_image_size) {
+      requestBody.parameters.sampleImageSize = sample_image_size;
     }
 
     if (process.env.DEBUG) {
@@ -1308,11 +1357,24 @@ It should be run by an MCP client like Claude Desktop.
       person_generation = "DONT_ALLOW",
       language = "auto",
       model = "imagen-3.0-generate-002",
-      region
+      region,
+      sample_image_size
     } = args;
 
     if (!prompt || typeof prompt !== 'string') {
       throw new McpError(ErrorCode.InvalidParams, "prompt is required and must be a string");
+    }
+
+    // Validate sample_image_size compatibility with model
+    if (sample_image_size === "2K") {
+      const supports2K = model.startsWith("imagen-4.0-generate-") || model.startsWith("imagen-4.0-ultra-generate-");
+      if (!supports2K) {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          `2K resolution is only supported by Imagen-4.0 models (imagen-4.0-generate-*, imagen-4.0-ultra-generate-*). ` +
+          `Current model "${model}" does not support 2K. Please use "1K" or switch to an Imagen-4.0 model.`
+        );
+      }
     }
 
     // デバッグログ
@@ -1335,7 +1397,8 @@ It should be run by an MCP client like Claude Desktop.
         person_generation,
         language,
         model,
-        region
+        region,
+        ...(sample_image_size ? { sample_image_size } : {})
       };
 
       const generateResult = await this.generateImage(generateArgs);
@@ -1510,7 +1573,8 @@ It should be run by an MCP client like Claude Desktop.
       negative_prompt,
       sample_count = 1,
       model = GOOGLE_IMAGEN_EDIT_MODEL,
-      region
+      region,
+      sample_image_size
     } = args;
 
     if (!prompt || typeof prompt !== 'string') {
@@ -1520,6 +1584,16 @@ It should be run by an MCP client like Claude Desktop.
     // Validate sample_count range
     if (sample_count < 1 || sample_count > 4) {
       throw new McpError(ErrorCode.InvalidParams, "sample_count must be between 1 and 4");
+    }
+
+    // Validate sample_image_size compatibility with model
+    if (sample_image_size === "2K") {
+      // Customize models don't currently support 2K - Imagen-3 capability models only
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        `2K resolution is only supported by Imagen-4.0 generation models (imagen-4.0-generate-*, imagen-4.0-ultra-generate-*). ` +
+        `The customize_image tool uses Imagen-3 capability models which do not support 2K. Please use "1K" or omit sample_image_size.`
+      );
     }
 
     // Validate that at least one reference image type is provided
@@ -1710,6 +1784,10 @@ It should be run by an MCP client like Claude Desktop.
 
     if (negative_prompt) {
       requestBody.parameters!.negativePrompt = negative_prompt;
+    }
+
+    if (sample_image_size) {
+      requestBody.parameters!.sampleImageSize = sample_image_size;
     }
 
     if (process.env.DEBUG) {

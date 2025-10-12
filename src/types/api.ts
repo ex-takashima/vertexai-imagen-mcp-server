@@ -57,6 +57,7 @@ export interface GoogleImagenRequest {
     personGeneration?: string;
     language?: string;
     negativePrompt?: string;
+    sampleImageSize?: string;
   };
 }
 
@@ -96,5 +97,6 @@ export interface GoogleImagenEditRequest {
     sampleCount?: number;
     guidanceScale?: number;
     negativePrompt?: string;
+    sampleImageSize?: string;
   };
 }

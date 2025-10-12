@@ -14,6 +14,7 @@ export interface GenerateImageArgs {
   model?: "imagen-4.0-ultra-generate-preview-06-06" | "imagen-4.0-fast-generate-preview-06-06" | "imagen-4.0-generate-preview-06-06" | "imagen-3.0-generate-002" | "imagen-3.0-fast-generate-001";
   region?: string;
   sample_count?: number;
+  sample_image_size?: "1K" | "2K";
 }
 
 export interface UpscaleImageArgs {
@@ -37,6 +38,7 @@ export interface GenerateAndUpscaleImageArgs {
   language?: "auto" | "en" | "zh" | "zh-TW" | "hi" | "ja" | "ko" | "pt" | "es";
   model?: "imagen-4.0-ultra-generate-preview-06-06" | "imagen-4.0-fast-generate-preview-06-06" | "imagen-4.0-generate-preview-06-06" | "imagen-3.0-generate-002" | "imagen-3.0-fast-generate-001";
   region?: string;
+  sample_image_size?: "1K" | "2K";
 }
 
 export interface ListGeneratedImagesArgs {
@@ -62,6 +64,7 @@ export interface EditImageArgs {
   negative_prompt?: string;
   model?: string;
   region?: string;
+  sample_image_size?: "1K" | "2K";
 }
 
 export interface CustomizeImageArgs {
@@ -94,6 +97,7 @@ export interface CustomizeImageArgs {
   sample_count?: number;
   model?: "imagen-4.0-ultra-generate-preview-06-06" | "imagen-4.0-fast-generate-preview-06-06" | "imagen-4.0-generate-preview-06-06" | "imagen-3.0-generate-002" | "imagen-3.0-fast-generate-001";
   region?: string;
+  sample_image_size?: "1K" | "2K";
 }
 
 export interface ListSemanticClassesArgs {
