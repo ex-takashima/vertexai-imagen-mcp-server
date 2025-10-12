@@ -39,6 +39,14 @@ import type {
   SearchHistoryArgs,
   GetMetadataFromImageArgs
 } from './types/history.js';
+import type {
+  SavePromptTemplateArgs,
+  ListPromptTemplatesArgs,
+  GetTemplateDetailArgs,
+  GenerateFromTemplateArgs,
+  DeleteTemplateArgs,
+  UpdateTemplateArgs
+} from './types/template.js';
 import type { ToolContext } from './tools/types.js';
 import { generateImage as handleGenerateImage } from './tools/generateImage.js';
 import { editImage as handleEditImage } from './tools/editImage.js';
@@ -56,6 +64,12 @@ import { listHistory as handleListHistory } from './tools/listHistory.js';
 import { getHistoryByUuid as handleGetHistoryByUuid } from './tools/getHistoryByUuid.js';
 import { searchHistory as handleSearchHistory } from './tools/searchHistory.js';
 import { getMetadataFromImage as handleGetMetadataFromImage } from './tools/getMetadataFromImage.js';
+import { savePromptTemplate as handleSavePromptTemplate } from './tools/savePromptTemplate.js';
+import { listPromptTemplates as handleListPromptTemplates } from './tools/listPromptTemplates.js';
+import { getTemplateDetail as handleGetTemplateDetail } from './tools/getTemplateDetail.js';
+import { generateFromTemplate as handleGenerateFromTemplate } from './tools/generateFromTemplate.js';
+import { deleteTemplate as handleDeleteTemplate } from './tools/deleteTemplate.js';
+import { updateTemplate as handleUpdateTemplate } from './tools/updateTemplate.js';
 
 const require = createRequire(import.meta.url);
 const { version: PACKAGE_VERSION } = require('../package.json') as { version: string };
@@ -76,6 +90,12 @@ const TOOL_LIST_HISTORY = "list_history";
 const TOOL_GET_HISTORY_BY_UUID = "get_history_by_uuid";
 const TOOL_SEARCH_HISTORY = "search_history";
 const TOOL_GET_METADATA_FROM_IMAGE = "get_metadata_from_image";
+const TOOL_SAVE_PROMPT_TEMPLATE = "save_prompt_template";
+const TOOL_LIST_PROMPT_TEMPLATES = "list_prompt_templates";
+const TOOL_GET_TEMPLATE_DETAIL = "get_template_detail";
+const TOOL_GENERATE_FROM_TEMPLATE = "generate_from_template";
+const TOOL_DELETE_TEMPLATE = "delete_template";
+const TOOL_UPDATE_TEMPLATE = "update_template";
 
 class GoogleImagenMCPServer {
   private server: Server;
@@ -828,6 +848,146 @@ It should be run by an MCP client like Claude Desktop.
               },
               required: ["image_path"],
             },
+          },
+          {
+            name: TOOL_SAVE_PROMPT_TEMPLATE,
+            description: "Save a reusable prompt template with variables and default parameters. Templates can be used for consistent image generation across sessions.",
+            inputSchema: {
+              type: "object",
+              properties: {
+                name: {
+                  type: "string",
+                  description: "Unique template name (alphanumeric, hyphens, underscores only)",
+                },
+                description: {
+                  type: "string",
+                  description: "Description of what this template generates",
+                },
+                template: {
+                  type: "string",
+                  description: "Prompt template with {variable_name} placeholders (e.g., 'A portrait of {subject}, {style}')",
+                },
+                variables: {
+                  type: "array",
+                  items: { type: "string" },
+                  description: "List of variable names (auto-extracted from template if omitted)",
+                },
+                default_params: {
+                  type: "object",
+                  description: "Default generation parameters (aspect_ratio, model, etc.)",
+                },
+                tags: {
+                  type: "array",
+                  items: { type: "string" },
+                  description: "Tags for categorizing templates",
+                },
+              },
+              required: ["name", "description", "template"],
+            },
+          },
+          {
+            name: TOOL_LIST_PROMPT_TEMPLATES,
+            description: "List all available prompt templates with optional filtering by tags or keyword search.",
+            inputSchema: {
+              type: "object",
+              properties: {
+                tags: {
+                  type: "array",
+                  items: { type: "string" },
+                  description: "Filter templates by tags",
+                },
+                search: {
+                  type: "string",
+                  description: "Search templates by keyword (searches name, description, template)",
+                },
+              },
+            },
+          },
+          {
+            name: TOOL_GET_TEMPLATE_DETAIL,
+            description: "Get detailed information about a specific prompt template, including usage examples.",
+            inputSchema: {
+              type: "object",
+              properties: {
+                template_name: {
+                  type: "string",
+                  description: "Name of the template to retrieve",
+                },
+              },
+              required: ["template_name"],
+            },
+          },
+          {
+            name: TOOL_GENERATE_FROM_TEMPLATE,
+            description: "Generate an image using a saved prompt template. Variables in the template will be replaced with provided values.",
+            inputSchema: {
+              type: "object",
+              properties: {
+                template_name: {
+                  type: "string",
+                  description: "Name of the template to use",
+                },
+                variable_values: {
+                  type: "object",
+                  description: "Values for template variables (e.g., {subject: 'a woman', style: 'cinematic'})",
+                },
+                override_params: {
+                  type: "object",
+                  description: "Override template's default parameters (aspect_ratio, model, etc.)",
+                },
+              },
+              required: ["template_name", "variable_values"],
+            },
+          },
+          {
+            name: TOOL_DELETE_TEMPLATE,
+            description: "Delete a saved prompt template.",
+            inputSchema: {
+              type: "object",
+              properties: {
+                template_name: {
+                  type: "string",
+                  description: "Name of the template to delete",
+                },
+              },
+              required: ["template_name"],
+            },
+          },
+          {
+            name: TOOL_UPDATE_TEMPLATE,
+            description: "Update an existing prompt template. All fields except name can be modified.",
+            inputSchema: {
+              type: "object",
+              properties: {
+                template_name: {
+                  type: "string",
+                  description: "Name of the template to update",
+                },
+                description: {
+                  type: "string",
+                  description: "New description",
+                },
+                template: {
+                  type: "string",
+                  description: "New template string",
+                },
+                variables: {
+                  type: "array",
+                  items: { type: "string" },
+                  description: "New variable list",
+                },
+                default_params: {
+                  type: "object",
+                  description: "New default parameters",
+                },
+                tags: {
+                  type: "array",
+                  items: { type: "string" },
+                  description: "New tags",
+                },
+              },
+              required: ["template_name"],
+            },
           }
         ],
       };
@@ -870,6 +1030,18 @@ It should be run by an MCP client like Claude Desktop.
             return await this.searchHistory(args as unknown as SearchHistoryArgs);
           case TOOL_GET_METADATA_FROM_IMAGE:
             return await this.getMetadataFromImage(args as unknown as GetMetadataFromImageArgs);
+          case TOOL_SAVE_PROMPT_TEMPLATE:
+            return await this.savePromptTemplate(args as unknown as SavePromptTemplateArgs);
+          case TOOL_LIST_PROMPT_TEMPLATES:
+            return await this.listPromptTemplates(args as unknown as ListPromptTemplatesArgs);
+          case TOOL_GET_TEMPLATE_DETAIL:
+            return await this.getTemplateDetail(args as unknown as GetTemplateDetailArgs);
+          case TOOL_GENERATE_FROM_TEMPLATE:
+            return await this.generateFromTemplate(args as unknown as GenerateFromTemplateArgs);
+          case TOOL_DELETE_TEMPLATE:
+            return await this.deleteTemplate(args as unknown as DeleteTemplateArgs);
+          case TOOL_UPDATE_TEMPLATE:
+            return await this.updateTemplate(args as unknown as UpdateTemplateArgs);
           default:
             throw new McpError(
               ErrorCode.MethodNotFound,
@@ -950,6 +1122,30 @@ It should be run by an MCP client like Claude Desktop.
 
   private async getMetadataFromImage(args: GetMetadataFromImageArgs) {
     return await handleGetMetadataFromImage(this.toolContext, args);
+  }
+
+  private async savePromptTemplate(args: SavePromptTemplateArgs) {
+    return await handleSavePromptTemplate(this.toolContext, args);
+  }
+
+  private async listPromptTemplates(args: ListPromptTemplatesArgs) {
+    return await handleListPromptTemplates(this.toolContext, args);
+  }
+
+  private async getTemplateDetail(args: GetTemplateDetailArgs) {
+    return await handleGetTemplateDetail(this.toolContext, args);
+  }
+
+  private async generateFromTemplate(args: GenerateFromTemplateArgs) {
+    return await handleGenerateFromTemplate(this.toolContext, args);
+  }
+
+  private async deleteTemplate(args: DeleteTemplateArgs) {
+    return await handleDeleteTemplate(this.toolContext, args);
+  }
+
+  private async updateTemplate(args: UpdateTemplateArgs) {
+    return await handleUpdateTemplate(this.toolContext, args);
   }
 
   private setupResourceHandlers() {
