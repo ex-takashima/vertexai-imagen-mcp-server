@@ -184,3 +184,56 @@ export function getDisplayPath(absolutePath: string): string {
   }
   return absolutePath;
 }
+
+/**
+ * Generate multiple file paths with numbered suffixes for multi-sample generation
+ *
+ * Examples:
+ * - generateMultipleFilePaths("image.png", 3) → ["image_1.png", "image_2.png", "image_3.png"]
+ * - generateMultipleFilePaths("output.jpg", 1) → ["output_1.jpg"]
+ *
+ * Each path is checked for uniqueness using generateUniqueFilePath to avoid overwriting.
+ *
+ * @param baseOutputPath Base output file path
+ * @param sampleCount Number of files to generate paths for
+ * @param autoNumbering If true, automatically add number suffix to avoid overwriting (default: true)
+ * @returns Array of unique file paths
+ */
+export async function generateMultipleFilePaths(
+  baseOutputPath: string,
+  sampleCount: number,
+  autoNumbering: boolean = true
+): Promise<string[]> {
+  if (sampleCount < 1) {
+    throw new Error(`sampleCount must be at least 1, got: ${sampleCount}`);
+  }
+
+  // If only one sample, return single path (with optional auto-numbering)
+  if (sampleCount === 1) {
+    if (autoNumbering) {
+      return [await generateUniqueFilePath(baseOutputPath)];
+    }
+    return [baseOutputPath];
+  }
+
+  // For multiple samples, add numbered suffixes
+  const parsedPath = path.parse(baseOutputPath);
+  const filePaths: string[] = [];
+
+  for (let i = 1; i <= sampleCount; i++) {
+    // Generate path with counter: basename_1.ext, basename_2.ext, ...
+    const numberedPath = path.join(
+      parsedPath.dir,
+      `${parsedPath.name}_${i}${parsedPath.ext}`
+    );
+
+    // Apply auto-numbering if enabled (to avoid overwriting existing files)
+    if (autoNumbering) {
+      filePaths.push(await generateUniqueFilePath(numberedPath));
+    } else {
+      filePaths.push(numberedPath);
+    }
+  }
+
+  return filePaths;
+}

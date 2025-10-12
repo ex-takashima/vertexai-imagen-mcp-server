@@ -13,6 +13,7 @@ export interface GenerateImageArgs {
   language?: "auto" | "en" | "zh" | "zh-TW" | "hi" | "ja" | "ko" | "pt" | "es";
   model?: "imagen-4.0-ultra-generate-preview-06-06" | "imagen-4.0-fast-generate-preview-06-06" | "imagen-4.0-generate-preview-06-06" | "imagen-3.0-generate-002" | "imagen-3.0-fast-generate-001";
   region?: string;
+  sample_count?: number;
 }
 
 export interface UpscaleImageArgs {

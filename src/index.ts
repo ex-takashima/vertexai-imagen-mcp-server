@@ -14,7 +14,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { GoogleAuth } from 'google-auth-library';
 import { createRequire } from 'module';
-import { normalizeAndValidatePath, getDisplayPath, getDefaultOutputDirectory, resolveInputPath } from './utils/path.js';
+import { normalizeAndValidatePath, getDisplayPath, getDefaultOutputDirectory, resolveInputPath, generateMultipleFilePaths } from './utils/path.js';
 import { getProjectId, getImagenApiUrl, getUpscaleApiUrl } from './utils/auth.js';
 import { ImageResourceManager } from './utils/resources.js';
 import {
@@ -23,6 +23,7 @@ import {
   resolveImageSource,
   createImageResponse,
   createUriImageResponse,
+  createMultiUriImageResponse,
   type ResolvedImageSource
 } from './utils/image.js';
 import type {
@@ -209,6 +210,12 @@ It should be run by an MCP client like Claude Desktop.
                 region: {
                   type: "string",
                   description: "Google Cloud region to use (default: from environment variable GOOGLE_REGION or us-central1)",
+                },
+                sample_count: {
+                  type: "integer",
+                  minimum: 1,
+                  maximum: 4,
+                  description: "Number of images to generate (default: 1). Range: 1-4 for Imagen-3",
                 }
               },
               required: ["prompt"],
@@ -286,8 +293,8 @@ It should be run by an MCP client like Claude Desktop.
                 sample_count: {
                   type: "integer",
                   minimum: 1,
-                  maximum: 1,
-                  description: "Number of images to generate (only 1 is supported currently)",
+                  maximum: 4,
+                  description: "Number of images to generate (default: 1). Range: 1-4 for Imagen-3",
                 },
                 negative_prompt: {
                   type: "string",
@@ -607,11 +614,17 @@ It should be run by an MCP client like Claude Desktop.
       person_generation = "DONT_ALLOW",
       language = "auto",
       model = "imagen-3.0-generate-002",
-      region
+      region,
+      sample_count = 1
     } = args;
 
     if (!prompt || typeof prompt !== 'string') {
       throw new McpError(ErrorCode.InvalidParams, "prompt is required and must be a string");
+    }
+
+    // Validate sample_count range
+    if (sample_count < 1 || sample_count > 4) {
+      throw new McpError(ErrorCode.InvalidParams, "sample_count must be between 1 and 4");
     }
 
     // Normalize path BEFORE API call (to avoid wasting API quota on invalid paths)
@@ -629,7 +642,7 @@ It should be run by an MCP client like Claude Desktop.
         }
       ],
       parameters: {
-        sampleCount: 1,
+        sampleCount: sample_count,
         aspectRatio: aspect_ratio,
         safetySettings: [
           {
@@ -683,44 +696,90 @@ It should be run by an MCP client like Claude Desktop.
         throw new Error('No images were generated');
       }
 
-      const generatedImage = response.data.predictions[0];
-      const imageBuffer = Buffer.from(generatedImage.bytesBase64Encoded, 'base64');
-      
+      const predictions = response.data.predictions;
+      const baseInfoText = `Image generated successfully!\n\nPrompt: ${prompt}\nAspect ratio: ${aspect_ratio}\nModel: ${model}`;
+
+      // Handle base64 mode (only returns first image for simplicity)
       if (return_base64) {
-        // Base64モード: 画像データを直接返す
         console.error(`[WARNING] return_base64=true is deprecated and consumes ~1,500 tokens. Use file save mode (default) instead.`);
+
+        if (predictions.length > 1) {
+          console.error(`[WARNING] return_base64 mode only returns the first image. ${predictions.length - 1} additional images were discarded.`);
+        }
+
+        const generatedImage = predictions[0];
+        const imageBuffer = Buffer.from(generatedImage.bytesBase64Encoded, 'base64');
 
         return createImageResponse(
           imageBuffer,
           generatedImage.mimeType,
           undefined,
-          `Image generated successfully!\n\nPrompt: ${prompt}\nAspect ratio: ${aspect_ratio}\nModel: ${model}`
+          baseInfoText
+        );
+      }
+
+      if (!normalizedPath) {
+        throw new Error('Normalized path is required for file save mode');
+      }
+
+      // Generate file paths for multiple samples
+      const filePaths = await generateMultipleFilePaths(normalizedPath, sample_count);
+
+      if (process.env.DEBUG) {
+        console.error(`[DEBUG] Saving ${predictions.length} generated image(s)`);
+      }
+
+      // Save all images and collect metadata
+      const imageInfos: Array<{
+        uri: string;
+        mimeType: string;
+        fileSize: number;
+        filePath: string;
+        absoluteFilePath: string;
+      }> = [];
+
+      for (let i = 0; i < predictions.length; i++) {
+        const prediction = predictions[i];
+        const imageBuffer = Buffer.from(prediction.bytesBase64Encoded, 'base64');
+        const absoluteFilePath = filePaths[i];
+
+        await fs.writeFile(absoluteFilePath, imageBuffer);
+
+        const displayPath = getDisplayPath(absoluteFilePath);
+        const fileUri = this.resourceManager.getFileUri(absoluteFilePath);
+
+        imageInfos.push({
+          uri: fileUri,
+          mimeType: prediction.mimeType,
+          fileSize: imageBuffer.length,
+          filePath: displayPath,
+          absoluteFilePath: absoluteFilePath
+        });
+      }
+
+      // Determine if thumbnail should be generated
+      const shouldIncludeThumbnail = include_thumbnail !== undefined
+        ? include_thumbnail
+        : (process.env.VERTEXAI_IMAGEN_THUMBNAIL === 'true');
+
+      // Return appropriate response based on number of images
+      if (sample_count === 1) {
+        // Single image: use original response format
+        const info = imageInfos[0];
+        return await createUriImageResponse(
+          info.uri,
+          info.mimeType,
+          info.fileSize,
+          info.filePath,
+          info.absoluteFilePath,
+          baseInfoText,
+          shouldIncludeThumbnail
         );
       } else {
-        // ファイル保存モード
-        if (!normalizedPath) {
-          throw new Error(
-            'Normalized path is required for file save mode.\n' +
-            'This is an internal error - please report this issue.'
-          );
-        }
-
-        await fs.writeFile(normalizedPath, imageBuffer);
-        const displayPath = getDisplayPath(normalizedPath);
-        const fileUri = this.resourceManager.getFileUri(normalizedPath);
-
-        // Determine if thumbnail should be generated
-        const shouldIncludeThumbnail = include_thumbnail !== undefined
-          ? include_thumbnail
-          : (process.env.VERTEXAI_IMAGEN_THUMBNAIL === 'true');
-
-        return await createUriImageResponse(
-          fileUri,
-          generatedImage.mimeType,
-          imageBuffer.length,
-          displayPath,
-          normalizedPath,
-          `Image generated successfully!\n\nPrompt: ${prompt}\nAspect ratio: ${aspect_ratio}\nModel: ${model}`,
+        // Multiple images: use multi-image response format
+        return await createMultiUriImageResponse(
+          imageInfos,
+          baseInfoText,
           shouldIncludeThumbnail
         );
       }
@@ -775,11 +834,12 @@ It should be run by an MCP client like Claude Desktop.
       throw new McpError(ErrorCode.InvalidParams, "prompt is required and must be a string");
     }
 
-    if (sample_count !== 1) {
-      throw new McpError(ErrorCode.InvalidParams, "sample_count other than 1 is not supported yet");
+    // Validate sample_count range
+    if (sample_count < 1 || sample_count > 4) {
+      throw new McpError(ErrorCode.InvalidParams, "sample_count must be between 1 and 4");
     }
 
-    // Normalize path BEFORE API call
+    // Normalize path BEFORE API call (for single sample, or base path for multiple samples)
     const normalizedPath = return_base64 ? undefined : await normalizeAndValidatePath(output_path);
 
     // Parameter validation for mask mode and mask sources
@@ -968,20 +1028,26 @@ It should be run by an MCP client like Claude Desktop.
         throw new Error('Editing failed - no output received');
       }
 
-      const editedImage = response.data.predictions[0];
-      const imageBuffer = Buffer.from(editedImage.bytesBase64Encoded, 'base64');
-
+      const predictions = response.data.predictions;
       const maskApplied = referenceImages.length > 1 ? 'yes' : 'no';
-      const infoText = `Image edited successfully!\n\nPrompt: ${prompt}\nModel: ${model}\nEdit mode: ${edit_mode}\nMask mode: ${mask_mode}\nMask applied: ${maskApplied}`;
+      const baseInfoText = `Image edited successfully!\n\nPrompt: ${prompt}\nModel: ${model}\nEdit mode: ${edit_mode}\nMask mode: ${mask_mode}\nMask applied: ${maskApplied}`;
 
+      // Handle base64 mode (only returns first image for simplicity)
       if (return_base64) {
         console.error(`[WARNING] return_base64=true is deprecated and consumes ~1,500 tokens. Use file save mode (default) instead.`);
+
+        if (predictions.length > 1) {
+          console.error(`[WARNING] return_base64 mode only returns the first image. ${predictions.length - 1} additional images were discarded.`);
+        }
+
+        const editedImage = predictions[0];
+        const imageBuffer = Buffer.from(editedImage.bytesBase64Encoded, 'base64');
 
         return createImageResponse(
           imageBuffer,
           editedImage.mimeType,
           undefined,
-          infoText
+          baseInfoText
         );
       }
 
@@ -989,25 +1055,67 @@ It should be run by an MCP client like Claude Desktop.
         throw new Error('Normalized path is required for file save mode');
       }
 
-      await fs.writeFile(normalizedPath, imageBuffer);
+      // Generate file paths for multiple samples
+      const filePaths = await generateMultipleFilePaths(normalizedPath, sample_count);
 
-      const displayPath = getDisplayPath(normalizedPath);
-      const fileUri = this.resourceManager.getFileUri(normalizedPath);
+      if (process.env.DEBUG) {
+        console.error(`[DEBUG] Saving ${predictions.length} edited image(s)`);
+      }
+
+      // Save all images and collect metadata
+      const imageInfos: Array<{
+        uri: string;
+        mimeType: string;
+        fileSize: number;
+        filePath: string;
+        absoluteFilePath: string;
+      }> = [];
+
+      for (let i = 0; i < predictions.length; i++) {
+        const prediction = predictions[i];
+        const imageBuffer = Buffer.from(prediction.bytesBase64Encoded, 'base64');
+        const absoluteFilePath = filePaths[i];
+
+        await fs.writeFile(absoluteFilePath, imageBuffer);
+
+        const displayPath = getDisplayPath(absoluteFilePath);
+        const fileUri = this.resourceManager.getFileUri(absoluteFilePath);
+
+        imageInfos.push({
+          uri: fileUri,
+          mimeType: prediction.mimeType,
+          fileSize: imageBuffer.length,
+          filePath: displayPath,
+          absoluteFilePath: absoluteFilePath
+        });
+      }
 
       // Determine if thumbnail should be generated
       const shouldIncludeThumbnail = include_thumbnail !== undefined
         ? include_thumbnail
         : (process.env.VERTEXAI_IMAGEN_THUMBNAIL === 'true');
 
-      return await createUriImageResponse(
-        fileUri,
-        editedImage.mimeType,
-        imageBuffer.length,
-        displayPath,
-        normalizedPath,
-        infoText,
-        shouldIncludeThumbnail
-      );
+      // Return appropriate response based on number of images
+      if (sample_count === 1) {
+        // Single image: use original response format
+        const info = imageInfos[0];
+        return await createUriImageResponse(
+          info.uri,
+          info.mimeType,
+          info.fileSize,
+          info.filePath,
+          info.absoluteFilePath,
+          baseInfoText,
+          shouldIncludeThumbnail
+        );
+      } else {
+        // Multiple images: use multi-image response format
+        return await createMultiUriImageResponse(
+          imageInfos,
+          baseInfoText,
+          shouldIncludeThumbnail
+        );
+      }
     } catch (error) {
       if (axios.isAxiosError(error)) {
         const errorMessage = error.response?.data?.error?.message || error.message;
