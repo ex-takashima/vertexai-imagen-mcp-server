@@ -2,13 +2,14 @@ import fs from 'fs/promises';
 import sharp from 'sharp';
 import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 import { resolveInputPath } from '../utils/path.js';
+import { extractMetadataFromImage } from '../utils/metadata.js';
 import type { GetMetadataFromImageArgs } from '../types/history.js';
 import type { ImageMetadata } from '../types/history.js';
 import type { ToolContext } from './types.js';
 
 /**
  * 画像ファイルからメタデータを読み取る
- * EXIF ImageDescriptionフィールドに埋め込まれたJSON形式のメタデータを解析
+ * PNG: tEXtチャンク、JPEG/WebP: EXIFからメタデータを解析
  */
 export async function getMetadataFromImage(
   context: ToolContext,
@@ -31,17 +32,16 @@ export async function getMetadataFromImage(
     // ファイルの存在確認
     await fs.access(resolvedPath);
 
-    // Sharpで画像メタデータを読み取り
-    const image = sharp(resolvedPath);
-    const metadata = await image.metadata();
+    // 中央化されたユーティリティを使用してメタデータを抽出
+    const parsedMetadata = await extractMetadataFromImage(resolvedPath);
 
-    if (!metadata.exif) {
+    if (!parsedMetadata) {
       return {
         content: [
           {
             type: 'text',
-            text: `No metadata found in image: ${image_path}\n\n` +
-                  'This image does not contain embedded metadata. ' +
+            text: `No Vertex AI Imagen metadata found in image: ${image_path}\n\n` +
+                  'This image does not contain embedded Vertex AI Imagen metadata. ' +
                   'Metadata embedding may have been disabled when the image was generated, ' +
                   'or this image was not created by this MCP server.',
           },
@@ -49,54 +49,9 @@ export async function getMetadataFromImage(
       };
     }
 
-    // EXIF ImageDescriptionからメタデータを抽出
-    let imageDescription: string | undefined;
-
-    try {
-      // Sharpが提供するEXIFデータからImageDescriptionを取得
-      const exifBuffer = metadata.exif;
-      const exifString = exifBuffer.toString('utf8');
-
-      // ImageDescriptionタグを探す（簡易的なパース）
-      const descMatch = exifString.match(/ImageDescription[^\x00]*\x00([^\x00]+)/);
-      if (descMatch && descMatch[1]) {
-        imageDescription = descMatch[1];
-      }
-    } catch (error) {
-      if (process.env.DEBUG) {
-        console.error('[DEBUG] Failed to parse EXIF data:', error);
-      }
-    }
-
-    if (!imageDescription) {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `No Vertex AI Imagen metadata found in image: ${image_path}\n\n` +
-                  'The image has EXIF data but does not contain Vertex AI Imagen metadata. ' +
-                  'This may be an image from a different source or generated before metadata embedding was implemented.',
-          },
-        ],
-      };
-    }
-
-    // JSON形式のメタデータをパース
-    let parsedMetadata: ImageMetadata;
-    try {
-      parsedMetadata = JSON.parse(imageDescription) as ImageMetadata;
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Failed to parse metadata from image: ${image_path}\n\n` +
-                  `Raw EXIF ImageDescription: ${imageDescription}\n\n` +
-                  'The metadata format may be corrupted or incompatible.',
-          },
-        ],
-      };
-    }
+    // Sharpで画像の基本情報を取得
+    const image = sharp(resolvedPath);
+    const metadata = await image.metadata();
 
     // 基本メタデータの表示
     let resultText = `📷 Image Metadata\n\n`;

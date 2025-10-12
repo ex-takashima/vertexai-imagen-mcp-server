@@ -4,6 +4,9 @@
 
 import { randomUUID, createHash } from 'crypto';
 import sharp from 'sharp';
+import extract from 'png-chunks-extract';
+import encode from 'png-chunks-encode';
+import text from 'png-chunk-text';
 import type { ImageMetadata, MetadataLevel } from '../types/history.js';
 
 /**
@@ -93,18 +96,22 @@ export async function embedMetadata(
   try {
     if (imageMetadata.format === 'png') {
       // PNGの場合、tEXtチャンクに埋め込み
-      return await image
-        .png({
-          compressionLevel: 9,
-        })
-        .withMetadata({
-          exif: {
-            IFD0: {
-              ImageDescription: metadataJson,
-            },
-          },
-        })
-        .toBuffer();
+      // png-chunksを使用してtEXtチャンクを追加
+      const chunks = extract(imageBuffer);
+
+      // VertexAI Imagen用のtEXtチャンクを作成
+      const textChunk = text.encode('vertexai_imagen_metadata', metadataJson);
+
+      // IENDチャンクの前に挿入（IENDは最後のチャンクである必要がある）
+      const iendIndex = chunks.findIndex(chunk => chunk.name === 'IEND');
+      if (iendIndex !== -1) {
+        chunks.splice(iendIndex, 0, textChunk);
+      } else {
+        chunks.push(textChunk);
+      }
+
+      // PNGバッファを再構築
+      return Buffer.from(encode(chunks));
     } else if (imageMetadata.format === 'jpeg' || imageMetadata.format === 'jpg') {
       // JPEGの場合、EXIFのUserCommentに埋め込み
       return await image
@@ -161,26 +168,43 @@ export async function extractMetadataFromImage(
     const image = sharp(imagePath);
     const metadata = await image.metadata();
 
-    // EXIFメタデータからImageDescriptionを取得
-    if (metadata.exif) {
-      const exifBuffer = metadata.exif;
+    // PNG形式の場合、tEXtチャンクから読み取り
+    if (metadata.format === 'png') {
+      const fs = await import('fs/promises');
+      const fileBuffer = await fs.readFile(imagePath);
+      const chunks = extract(fileBuffer);
 
-      // EXIFバッファから ImageDescription を探す
-      // Sharp の exif は Buffer として返されるため、パースが必要
-      // ここでは簡易的に文字列に変換して JSON を探す
-      const exifString = exifBuffer.toString('utf8', 0, Math.min(exifBuffer.length, 10000));
+      // vertexai_imagen_metadataチャンクを探す
+      const metadataChunk = chunks.find(
+        chunk => chunk.name === 'tEXt' && text.decode(chunk.data).keyword === 'vertexai_imagen_metadata'
+      );
 
-      // ImageDescription フィールドを探す
-      // 実際のEXIFデータ構造はバイナリなので、より堅牢な方法が必要な場合は exif-parser などを使用
-      const jsonMatch = exifString.match(/\{[^{}]*vertexai_imagen_uuid[^{}]*\}/);
-
-      if (jsonMatch) {
+      if (metadataChunk) {
+        const decoded = text.decode(metadataChunk.data);
         try {
-          const extractedMetadata = JSON.parse(jsonMatch[0]) as ImageMetadata;
+          const extractedMetadata = JSON.parse(decoded.text) as ImageMetadata;
           return extractedMetadata;
         } catch (parseError) {
           if (process.env.DEBUG) {
-            console.error(`[DEBUG] Failed to parse metadata JSON: ${parseError}`);
+            console.error(`[DEBUG] Failed to parse PNG metadata JSON: ${parseError}`);
+          }
+        }
+      }
+    } else {
+      // JPEG/WebP形式の場合、EXIFメタデータから読み取り
+      if (metadata.exif) {
+        const exifBuffer = metadata.exif;
+        const exifString = exifBuffer.toString('utf8', 0, Math.min(exifBuffer.length, 10000));
+        const jsonMatch = exifString.match(/\{[^{}]*vertexai_imagen_uuid[^{}]*\}/);
+
+        if (jsonMatch) {
+          try {
+            const extractedMetadata = JSON.parse(jsonMatch[0]) as ImageMetadata;
+            return extractedMetadata;
+          } catch (parseError) {
+            if (process.env.DEBUG) {
+              console.error(`[DEBUG] Failed to parse EXIF metadata JSON: ${parseError}`);
+            }
           }
         }
       }
