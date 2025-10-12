@@ -523,6 +523,12 @@ It should be run by an MCP client like Claude Desktop.
                   type: "string",
                   description: "Optional negative text prompt to avoid certain traits",
                 },
+                sample_count: {
+                  type: "integer",
+                  minimum: 1,
+                  maximum: 4,
+                  description: "Number of images to generate (default: 1). Range: 1-4 for Imagen-3",
+                },
                 model: {
                   type: "string",
                   enum: ["imagen-3.0-capability-001", "imagegeneration@006", "imagegeneration@005", "imagegeneration@002"],
@@ -1502,12 +1508,18 @@ It should be run by an MCP client like Claude Desktop.
       person_generation = "DONT_ALLOW",
       language = "auto",
       negative_prompt,
+      sample_count = 1,
       model = GOOGLE_IMAGEN_EDIT_MODEL,
       region
     } = args;
 
     if (!prompt || typeof prompt !== 'string') {
       throw new McpError(ErrorCode.InvalidParams, "prompt is required and must be a string");
+    }
+
+    // Validate sample_count range
+    if (sample_count < 1 || sample_count > 4) {
+      throw new McpError(ErrorCode.InvalidParams, "sample_count must be between 1 and 4");
     }
 
     // Validate that at least one reference image type is provided
@@ -1671,7 +1683,7 @@ It should be run by an MCP client like Claude Desktop.
         }
       ],
       parameters: {
-        sampleCount: 1,
+        sampleCount: sample_count,
         aspectRatio: aspect_ratio,
         safetySettings: [
           {
@@ -1736,45 +1748,94 @@ It should be run by an MCP client like Claude Desktop.
         throw new Error('No images were generated');
       }
 
-      const generatedImage = response.data.predictions[0];
-      const imageBuffer = Buffer.from(generatedImage.bytesBase64Encoded, 'base64');
+      const predictions = response.data.predictions;
+      const baseInfoText = `Image customized successfully!\n\nPrompt: ${prompt}\nAspect ratio: ${aspect_ratio}\nModel: ${model}\nReference types: ${hasControl ? 'control ' : ''}${hasSubject ? 'subject ' : ''}${hasStyle ? 'style' : ''}`;
 
-      const infoText = `Image customized successfully!\n\nPrompt: ${prompt}\nAspect ratio: ${aspect_ratio}\nModel: ${model}\nReference types: ${hasControl ? 'control ' : ''}${hasSubject ? 'subject ' : ''}${hasStyle ? 'style' : ''}`;
-
+      // Handle base64 mode (only returns first image for simplicity)
       if (return_base64) {
         console.error(`[WARNING] return_base64=true is deprecated and consumes ~1,500 tokens. Use file save mode (default) instead.`);
+
+        if (predictions.length > 1) {
+          console.error(`[WARNING] return_base64 mode only returns the first image. ${predictions.length - 1} additional images were discarded.`);
+        }
+
+        const generatedImage = predictions[0];
+        const imageBuffer = Buffer.from(generatedImage.bytesBase64Encoded, 'base64');
 
         return createImageResponse(
           imageBuffer,
           generatedImage.mimeType,
           undefined,
-          infoText
+          baseInfoText
+        );
+      }
+
+      // File save mode
+      if (!normalizedPath) {
+        throw new Error(
+          'Normalized path is required for file save mode.\n' +
+          'This is an internal error - please report this issue.'
+        );
+      }
+
+      // Generate file paths for multiple samples
+      const filePaths = await generateMultipleFilePaths(normalizedPath, sample_count);
+
+      if (process.env.DEBUG) {
+        console.error(`[DEBUG] Saving ${predictions.length} customized image(s)`);
+      }
+
+      // Save all images and collect metadata
+      const imageInfos: Array<{
+        uri: string;
+        mimeType: string;
+        fileSize: number;
+        filePath: string;
+        absoluteFilePath: string;
+      }> = [];
+
+      for (let i = 0; i < predictions.length; i++) {
+        const prediction = predictions[i];
+        const imageBuffer = Buffer.from(prediction.bytesBase64Encoded, 'base64');
+        const absoluteFilePath = filePaths[i];
+
+        await fs.writeFile(absoluteFilePath, imageBuffer);
+
+        const displayPath = getDisplayPath(absoluteFilePath);
+        const fileUri = this.resourceManager.getFileUri(absoluteFilePath);
+
+        imageInfos.push({
+          uri: fileUri,
+          mimeType: prediction.mimeType,
+          fileSize: imageBuffer.length,
+          filePath: displayPath,
+          absoluteFilePath: absoluteFilePath
+        });
+      }
+
+      // Determine if thumbnail should be generated
+      const shouldIncludeThumbnail = include_thumbnail !== undefined
+        ? include_thumbnail
+        : (process.env.VERTEXAI_IMAGEN_THUMBNAIL === 'true');
+
+      // Return appropriate response based on number of images
+      if (sample_count === 1) {
+        // Single image: use original response format
+        const info = imageInfos[0];
+        return await createUriImageResponse(
+          info.uri,
+          info.mimeType,
+          info.fileSize,
+          info.filePath,
+          info.absoluteFilePath,
+          baseInfoText,
+          shouldIncludeThumbnail
         );
       } else {
-        // File save mode
-        if (!normalizedPath) {
-          throw new Error(
-            'Normalized path is required for file save mode.\n' +
-            'This is an internal error - please report this issue.'
-          );
-        }
-
-        await fs.writeFile(normalizedPath, imageBuffer);
-        const displayPath = getDisplayPath(normalizedPath);
-        const fileUri = this.resourceManager.getFileUri(normalizedPath);
-
-        // Determine if thumbnail should be generated
-        const shouldIncludeThumbnail = include_thumbnail !== undefined
-          ? include_thumbnail
-          : (process.env.VERTEXAI_IMAGEN_THUMBNAIL === 'true');
-
-        return await createUriImageResponse(
-          fileUri,
-          generatedImage.mimeType,
-          imageBuffer.length,
-          displayPath,
-          normalizedPath,
-          infoText,
+        // Multiple images: use multi-image response format
+        return await createMultiUriImageResponse(
+          imageInfos,
+          baseInfoText,
           shouldIncludeThumbnail
         );
       }

@@ -91,6 +91,7 @@ export interface CustomizeImageArgs {
   person_generation?: "DONT_ALLOW" | "ALLOW_ADULT" | "ALLOW_ALL";
   language?: "auto" | "en" | "zh" | "zh-TW" | "hi" | "ja" | "ko" | "pt" | "es";
   negative_prompt?: string;
+  sample_count?: number;
   model?: "imagen-4.0-ultra-generate-preview-06-06" | "imagen-4.0-fast-generate-preview-06-06" | "imagen-4.0-generate-preview-06-06" | "imagen-3.0-generate-002" | "imagen-3.0-fast-generate-001";
   region?: string;
 }

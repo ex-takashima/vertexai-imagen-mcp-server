@@ -26,52 +26,30 @@
 
 ---
 
-## 実装予定
-
-### Phase 1A': customize_image Multi-sample Support
-**優先度**: 🟡 中
-**所要時間**: 30分程度
-**依存関係**: Phase 1A（完了済み）
-
-**目的**: customize_image ツールに sample_count パラメータを追加し、generate_image/edit_image と機能を統一する
+### ✅ Phase 1A': customize_image Multi-sample Support
+**完了日**: 2025-10-12
+**ブランチ**: digicatswork
+**所要時間**: 30分
 
 **実装内容**:
-1. **Schema 更新** (src/index.ts)
-   - `TOOL_CUSTOMIZE_IMAGE` の inputSchema に `sample_count` パラメータ追加
-   - type: integer, minimum: 1, maximum: 4, default: 1
+- `customize_image`: 1-4枚の画像生成対応（デフォルト: 1）
+- `generateMultipleFilePaths()` を使用した自動ナンバリング
+- `createMultiUriImageResponse()` による複数画像のMCPレスポンス
+- sample_count パラメータのバリデーション（1-4の範囲チェック）
+- 後方互換性維持（sample_count=1 は従来形式）
+- base64モード時の警告追加（複数画像時）
 
-2. **Type 定義更新** (src/types/tools.ts)
-   - `CustomizeImageArgs` に `sample_count?: number` を追加
-
-3. **API リクエスト更新** (src/index.ts)
-   - `customizeImage()` 関数のパラメータに `sample_count = 1` を追加
-   - `requestBody.parameters.sampleCount` を変数化（現在は固定値 1）
-   - Validation 追加: `if (sample_count < 1 || sample_count > 4)`
-
-4. **ファイル保存処理更新**
-   - `generateMultipleFilePaths()` を使用してファイルパス生成
-   - 複数 predictions のループ処理
-   - imageInfos 配列の構築
-
-5. **レスポンス処理更新**
-   - `sample_count === 1`: `createUriImageResponse()` を使用
-   - `sample_count > 1`: `createMultiUriImageResponse()` を使用
-   - base64 モードの警告追加（複数画像時）
+**変更ファイル**:
+- src/types/tools.ts: CustomizeImageArgs に sample_count 追加
+- src/index.ts: Schema定義、customizeImage()関数の更新
 
 **注意点**:
 - Reference images (control/subject/style) との組み合わせで API 制限がある可能性
-- 特に non-square aspect ratio + 複数 reference types の制限に注意
-- 既存の制限チェック（line 818-826）を維持
-
-**テスト項目**:
-- [ ] single sample (sample_count=1) で正常動作
-- [ ] multiple samples (sample_count=2-4) で正常動作
-- [ ] control + sample_count の組み合わせ
-- [ ] subject + sample_count の組み合わせ
-- [ ] style + sample_count の組み合わせ
-- [ ] base64 mode で警告が出ること
+- 特に non-square aspect ratio + 複数 reference types の制限に注意（既存チェック維持）
 
 ---
+
+## 実装予定
 
 ### Phase 1B: Asynchronous Job Management（非同期ジョブ管理）
 **優先度**: 🟢 低
@@ -450,4 +428,4 @@
 ---
 
 **最終更新**: 2025-10-12
-**ステータス**: Phase 1A 完了、Phase 1A' 以降は未着手
+**ステータス**: Phase 1A, Phase 1A' 完了、Phase 1B 以降は未着手
