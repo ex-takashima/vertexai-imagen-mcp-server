@@ -49,12 +49,11 @@
 
 ---
 
-## 実装予定
-
-### Phase 1C: Resolution Selection（解像度選択対応）
-**優先度**: 🟡 中～高（ユーザー要望、早期実装推奨）
-**所要時間**: 1時間
-**依存関係**: なし
+### ✅ Phase 1C: Resolution Selection（解像度選択対応）
+**完了日**: 2025-10-12
+**ブランチ**: digicatswork
+**コミット**: 0f3416f
+**所要時間**: 1.5時間
 
 **目的**: 生成画像の出力解像度を選択可能にし、ユーザーのニーズに応じた品質制御を実現
 
@@ -123,8 +122,16 @@
    - デフォルト値の処理（省略時は Imagen API のデフォルト "1K" を使用）
 
 **変更ファイル**:
-- `src/types/tools.ts`: 全ての生成系 Args インターフェースに追加
-- `src/index.ts`: スキーマ定義と各ツール関数の更新
+- `src/types/tools.ts`: 全ての生成系 Args インターフェースに `sample_image_size` 追加、EditImageArgs/CustomizeImageArgs のモデル型を修正
+- `src/types/api.ts`: GoogleImagenRequest/GoogleImagenEditRequest に `sampleImageSize` 追加
+- `src/index.ts`: スキーマ定義（4ツール）、バリデーションロジック、API統合
+- `IMPLEMENTATION_ROADMAP.md`: モデル制約とガイドラインの文書化
+
+**主な実装ポイント**:
+1. 型定義とスキーマに `sample_image_size?: "1K" | "2K"` パラメータ追加
+2. 厳密なモデルバリデーション実装（2K対応は2モデルのみ）
+3. Edit/Customize ツールの型定義を正確に修正（imagen-3.0-capability-001のみ）
+4. 生成系モデル名をプレビュー版からGA版に更新
 
 **メリット**:
 - ユーザーが品質と生成速度のトレードオフを制御可能
@@ -141,9 +148,17 @@
 - `upscale_image` ツールとの使い分けを明確化
   - 小さい解像度で生成 → upscale（従来の方法、全モデル対応）
   - 最初から高解像度で生成（新しい方法、imagen-4.0-generate-001 / ultra のみ）
-- **バリデーション実装**: 非対応モデルで2Kが指定された場合はエラーを返す
+- **バリデーション実装**: 非対応モデルで2Kが指定された場合は明確なエラーメッセージを返す
+  - `imagen-4.0-fast-generate-001` で2K指定時もエラー（1Kのみ対応）
+
+**学んだこと**:
+- Imagen-4.0モデルでもFast版は2K非対応であることが判明
+- モデル名がプレビュー版（-preview-06-06）からGA版（-001）に移行
+- 厳密なモデル検証の重要性（プレフィックス判定では不十分）
 
 ---
+
+## 実装予定
 
 ### Phase 1B: Asynchronous Job Management（非同期ジョブ管理）
 **優先度**: 🟡 中（タイムアウト対策により信頼性向上）
@@ -792,7 +807,7 @@ UUID-based History Tracking & Metadata Integration（Phase 2）として実装�
 1. **Phase 1A'** (customize_image マルチサンプル) - 30分 ✅ 完了
    - 理由: 既存機能との統一、低リスク
 
-2. **Phase 1C** (解像度選択対応) - 1時間 ⬅️ 次の実装推奨
+2. **Phase 1C** (解像度選択対応) - 1.5時間 ✅ 完了
    - 理由:
      - ユーザー要望による早期実装
      - 実装が容易かつ低リスク
@@ -800,7 +815,7 @@ UUID-based History Tracking & Metadata Integration（Phase 2）として実装�
      - Phase 1B/2 の複雑な実装の前に完了できる小規模改善
    - メリット: 高解像度生成オプション、プロトタイピング速度向上
 
-3. **Phase 1B + Phase 2 統合** (Async Jobs + UUID-based History Tracking) - 7-9時間
+3. **Phase 1B + Phase 2 統合** (Async Jobs + UUID-based History Tracking) - 7-9時間 ⬅️ 次の実装推奨
    - 理由:
      - タイムアウト対策による信頼性向上（Phase 1B）
      - SQLite統合により再起動耐性とメトリクス集計を同時実現
