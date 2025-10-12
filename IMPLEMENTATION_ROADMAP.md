@@ -52,9 +52,9 @@
 ## 実装予定
 
 ### Phase 1B: Asynchronous Job Management（非同期ジョブ管理）
-**優先度**: 🟢 低
-**所要時間**: 3-4時間
-**依存関係**: なし
+**優先度**: 🟡 中（タイムアウト対策により信頼性向上）
+**所要時間**: 4-5時間（SQLite統合含む）
+**依存関係**: Phase 2との統合を推奨
 
 **目的**: 長時間実行のジョブを非同期で管理し、タイムアウトを回避する
 
@@ -62,17 +62,44 @@
 
 1. **ジョブ管理システム**
    ```typescript
-   interface Job {
+   type JobType = 'generate' | 'edit' | 'customize' | 'upscale';
+   type JobStatus = 'pending' | 'running' | 'completed' | 'failed';
+
+   interface JobBase {
      id: string;
-     type: 'generate' | 'edit' | 'customize' | 'upscale';
-     status: 'pending' | 'running' | 'completed' | 'failed';
-     params: any;
-     result?: any;
-     error?: string;
+     type: JobType;
+     status: JobStatus;
      createdAt: Date;
      startedAt?: Date;
      completedAt?: Date;
+     error?: string;
    }
+
+   interface GenerateJob extends JobBase {
+     type: 'generate';
+     params: GenerateImageArgs;
+     result?: { outputPaths: string[] };
+   }
+
+   interface EditJob extends JobBase {
+     type: 'edit';
+     params: EditImageArgs;
+     result?: { outputPaths: string[] };
+   }
+
+   interface CustomizeJob extends JobBase {
+     type: 'customize';
+     params: CustomizeImageArgs;
+     result?: { outputPaths: string[] };
+   }
+
+   interface UpscaleJob extends JobBase {
+     type: 'upscale';
+     params: UpscaleImageArgs;
+     result?: { outputPath: string };
+   }
+
+   type Job = GenerateJob | EditJob | CustomizeJob | UpscaleJob;
    ```
 
 2. **新規ツール**
@@ -96,9 +123,14 @@
      - 入力: status?, limit?
      - 出力: jobs[]
 
-3. **ストレージ**
-   - 簡易実装: メモリベース（Map<string, Job>）
-   - 本格実装: SQLite または外部 Redis
+3. **ストレージ（Phase 2と統合推奨）**
+   - **推奨**: SQLite統合
+     - Phase 2（履歴機能）と同じDBを使用
+     - テーブル: `jobs` と `history` を同一DB内に配置
+     - メリット: 再起動耐性、メトリクス集計、トランザクション管理
+     - パス: 環境変数 `VERTEXAI_IMAGEN_DB` または デフォルト `./data/vertexai-imagen.db`
+   - 代替案: メモリベース（Map<string, Job>）
+     - プロトタイプ向け、再起動で消失
 
 4. **ワーカー実装**
    - Promise ベースの非同期実行
@@ -110,18 +142,22 @@
 - 複数ジョブの並列実行
 - UX向上（即座にレスポンス）
 - リトライ機能の実装が容易
+- **SQLite統合時**:
+  - 再起動後もジョブ状態を保持
+  - 履歴機能と統合したメトリクス分析
+  - トランザクションによる一貫性保証
 
-**デメリット**:
-- 実装の複雑性増加
-- ステート管理が必要
-- MCP クライアント側でポーリングが必要
+**考慮事項**:
+- 実装の複雑性増加（Phase 2と統合することで軽減）
+- ステート管理が必要（SQLiteで永続化）
+- MCP クライアント側でポーリングが必要（非同期の制約）
 
 ---
 
 ### Phase 2: History Tracking（履歴追跡）
 **優先度**: 🟡 中
 **所要時間**: 2-3時間
-**依存関係**: なし
+**依存関係**: Phase 1Bと統合推奨
 
 **目的**: 生成した画像の履歴とメタデータを記録し、再現性と管理性を向上させる
 
@@ -142,11 +178,30 @@
      success BOOLEAN DEFAULT 1,
      error_message TEXT
    );
+
+   -- Phase 1B との統合時
+   CREATE TABLE jobs (
+     id TEXT PRIMARY KEY,
+     type TEXT NOT NULL,
+     status TEXT NOT NULL,
+     params TEXT NOT NULL,  -- JSON
+     result TEXT,            -- JSON
+     error TEXT,
+     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+     started_at DATETIME,
+     completed_at DATETIME
+   );
    ```
 
-2. **保存場所**
-   - SQLite: `~/.vertexai-imagen-history.db`
-   - または環境変数: `VERTEXAI_IMAGEN_HISTORY_DB`
+2. **保存場所（柔軟性重視）**
+   - **優先順位**:
+     1. 環境変数 `VERTEXAI_IMAGEN_DB`（Phase 1Bと統合時）
+     2. 環境変数 `VERTEXAI_IMAGEN_HISTORY_DB`（履歴のみ）
+     3. デフォルト: `./data/vertexai-imagen.db`（プロジェクト直下）
+   - **理由**:
+     - コンテナ/CI環境対応: ホームディレクトリ依存を回避
+     - 相対パス使用可能: プロジェクト単位でDB管理
+     - 環境変数で柔軟にカスタマイズ可能
 
 3. **新規ツール**
    - `list_history`: 履歴一覧表示
@@ -213,10 +268,17 @@
    }
    ```
 
-2. **保存場所**
-   - `~/.vertexai-imagen-templates/` ディレクトリ
-   - または `.claude/prompt_templates/`
-   - 環境変数: `VERTEXAI_IMAGEN_TEMPLATES_DIR`
+2. **保存場所（規約明確化）**
+   - **優先順位**:
+     1. 環境変数 `VERTEXAI_IMAGEN_TEMPLATES_DIR`（最優先）
+     2. `~/.vertexai-imagen/templates/`（ユーザーレベル）
+     3. `./templates/`（プロジェクトレベル、デフォルト）
+   - **ファイル形式**: JSON（`.json`）
+   - **命名規則**: `{template_name}.json`
+   - **共有フロー**:
+     - チーム共有: プロジェクト内の `./templates/` を git 管理
+     - 個人用: `~/.vertexai-imagen/templates/` にカスタムテンプレート配置
+   - **検索順序**: 環境変数 → ユーザーレベル → プロジェクトレベル
 
 3. **新規ツール**
    - `save_prompt_template`: テンプレート保存
@@ -343,17 +405,19 @@
 1. **Phase 1A'** (customize_image マルチサンプル) - 30分 ✅ 完了
    - 理由: 既存機能との統一、低リスク
 
-2. **Phase 2** (History Tracking) - 2-3時間
-   - 理由: 管理性・再現性の大幅向上
+2. **Phase 1B + Phase 2 統合** (Async Jobs + History Tracking) - 5-6時間
+   - 理由:
+     - タイムアウト対策による信頼性向上（Phase 1B）
+     - SQLite統合により再起動耐性とメトリクス集計を同時実現
+     - 管理性・再現性の大幅向上（Phase 2）
+   - 実装順序: Phase 2（DB設計）→ Phase 1B（ジョブ管理）→ 統合テスト
 
-3. **Phase 1B** (Async Jobs) - 3-4時間
-   - 理由: タイムアウト問題の解決
+3. **Phase 4** (Templates) - 1-2時間
+   - 理由: ユーザビリティ向上、チーム共有フロー整備
 
-4. **Phase 4** (Templates) - 1-2時間
-   - 理由: ユーザビリティ向上
-
-5. **その他の検討項目** - 適宜
+4. **その他の検討項目** - 適宜
    - ユーザーフィードバックに基づいて優先順位付け
+   - メタデータ埋め込み、バッチ処理など
 
 ---
 
@@ -362,8 +426,9 @@
 ### バージョニング
 - Phase 1A: v0.6.0 としてリリース予定
 - Phase 1A': v0.6.1
-- Phase 2: v0.7.0
-- Phase 1B: v0.8.0
+- Phase 1B + Phase 2 統合: v0.7.0（メジャーアップデート）
+  - SQLite導入、ジョブ管理、履歴機能
+- Phase 4: v0.8.0
 
 ### ドキュメント更新
 各フェーズ完了後、以下を更新:
