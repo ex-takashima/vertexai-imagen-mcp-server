@@ -6,10 +6,15 @@ import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
 import type { PromptTemplate } from '../types/template.js';
+import { getDefaultOutputDirectory } from './path.js';
 
 /**
  * テンプレート保存ディレクトリを取得
- * 優先順位: 環境変数 → ユーザーレベル → プロジェクトレベル
+ * 優先順位:
+ * 1. 環境変数 VERTEXAI_IMAGEN_TEMPLATES_DIR
+ * 2. 画像出力先フォルダ配下 [VERTEXAI_IMAGEN_OUTPUT_DIR]/templates (デフォルト)
+ * 3. プロジェクトレベル ./templates
+ * 4. ユーザーレベル ~/.vertexai-imagen/templates
  */
 export function getTemplateDirectory(): string {
   // 1. 環境変数
@@ -17,16 +22,11 @@ export function getTemplateDirectory(): string {
     return process.env.VERTEXAI_IMAGEN_TEMPLATES_DIR;
   }
 
-  // 2. ユーザーレベル
-  const userTemplateDir = path.join(os.homedir(), '.vertexai-imagen', 'templates');
+  // 2. 画像出力先フォルダ配下（デフォルト）
+  const outputDir = getDefaultOutputDirectory();
+  const defaultTemplateDir = path.join(outputDir, 'templates');
 
-  // 3. プロジェクトレベル（デフォルト）
-  const projectTemplateDir = path.join(process.cwd(), 'templates');
-
-  // ユーザーレベルのディレクトリが存在する場合はそれを使用
-  // 存在チェックは非同期なので、ここでは同期的にプロジェクトレベルをデフォルトとする
-  // 実際の読み込み時に両方チェックする
-  return projectTemplateDir;
+  return defaultTemplateDir;
 }
 
 /**
@@ -48,7 +48,12 @@ export function sanitizeTemplateName(name: string): string {
 
 /**
  * テンプレートファイルのパスを取得
- * 複数のディレクトリを検索（環境変数 → ユーザーレベル → プロジェクトレベル）
+ * 複数のディレクトリを検索
+ * 優先順位:
+ * 1. 環境変数 VERTEXAI_IMAGEN_TEMPLATES_DIR
+ * 2. 画像出力先フォルダ配下 [VERTEXAI_IMAGEN_OUTPUT_DIR]/templates
+ * 3. プロジェクトレベル ./templates
+ * 4. ユーザーレベル ~/.vertexai-imagen/templates
  */
 export async function getTemplateFilePath(templateName: string): Promise<string | null> {
   const sanitized = sanitizeTemplateName(templateName);
@@ -62,11 +67,15 @@ export async function getTemplateFilePath(templateName: string): Promise<string 
     searchPaths.push(path.join(process.env.VERTEXAI_IMAGEN_TEMPLATES_DIR, fileName));
   }
 
-  // 2. ユーザーレベル
-  searchPaths.push(path.join(os.homedir(), '.vertexai-imagen', 'templates', fileName));
+  // 2. 画像出力先フォルダ配下
+  const outputDir = getDefaultOutputDirectory();
+  searchPaths.push(path.join(outputDir, 'templates', fileName));
 
   // 3. プロジェクトレベル
   searchPaths.push(path.join(process.cwd(), 'templates', fileName));
+
+  // 4. ユーザーレベル
+  searchPaths.push(path.join(os.homedir(), '.vertexai-imagen', 'templates', fileName));
 
   // 存在するファイルを探す
   for (const filePath of searchPaths) {
@@ -195,6 +204,12 @@ export async function deleteTemplate(templateName: string): Promise<boolean> {
 
 /**
  * テンプレート一覧を取得
+ * 複数のディレクトリを検索
+ * 優先順位:
+ * 1. 環境変数 VERTEXAI_IMAGEN_TEMPLATES_DIR
+ * 2. 画像出力先フォルダ配下 [VERTEXAI_IMAGEN_OUTPUT_DIR]/templates
+ * 3. プロジェクトレベル ./templates
+ * 4. ユーザーレベル ~/.vertexai-imagen/templates
  */
 export async function listTemplates(
   options?: {
@@ -212,11 +227,15 @@ export async function listTemplates(
     searchDirs.push(process.env.VERTEXAI_IMAGEN_TEMPLATES_DIR);
   }
 
-  // 2. ユーザーレベル
-  searchDirs.push(path.join(os.homedir(), '.vertexai-imagen', 'templates'));
+  // 2. 画像出力先フォルダ配下
+  const outputDir = getDefaultOutputDirectory();
+  searchDirs.push(path.join(outputDir, 'templates'));
 
   // 3. プロジェクトレベル
   searchDirs.push(path.join(process.cwd(), 'templates'));
+
+  // 4. ユーザーレベル
+  searchDirs.push(path.join(os.homedir(), '.vertexai-imagen', 'templates'));
 
   // 各ディレクトリを検索
   for (const dir of searchDirs) {
