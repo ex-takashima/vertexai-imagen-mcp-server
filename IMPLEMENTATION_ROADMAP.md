@@ -51,6 +51,88 @@
 
 ## 実装予定
 
+### Phase 1C: Resolution Selection（解像度選択対応）
+**優先度**: 🟡 中～高（ユーザー要望、早期実装推奨）
+**所要時間**: 1時間
+**依存関係**: なし
+
+**目的**: 生成画像の出力解像度を選択可能にし、ユーザーのニーズに応じた品質制御を実現
+
+**実装内容**:
+
+1. **新規パラメータ: `sampleImageSize`**
+   - 型: `string`
+   - 許可値: `"1K"` | `"2K"`
+   - デフォルト: `"1K"`
+   - 用途: 生成画像の出力解像度を指定
+
+2. **対象ツール**
+   - `generate_image`: 画像生成時の解像度選択
+   - `edit_image`: 画像編集時の解像度選択
+   - `customize_image`: 画像カスタマイズ時の解像度選択
+   - `generate_and_upscale_image`: 生成時の解像度選択（アップスケール前）
+
+3. **型定義の更新**
+   ```typescript
+   // src/types/tools.ts
+   export interface GenerateImageArgs {
+     // ... 既存フィールド
+     sample_count?: number;
+     sample_image_size?: "1K" | "2K";  // 追加
+   }
+
+   export interface EditImageArgs {
+     // ... 既存フィールド
+     sample_count?: number;
+     sample_image_size?: "1K" | "2K";  // 追加
+   }
+
+   export interface CustomizeImageArgs {
+     // ... 既存フィールド
+     sample_count?: number;
+     sample_image_size?: "1K" | "2K";  // 追加
+   }
+
+   export interface GenerateAndUpscaleImageArgs {
+     // ... 既存フィールド
+     sample_image_size?: "1K" | "2K";  // 追加
+   }
+   ```
+
+4. **スキーマ定義の更新**
+   ```typescript
+   // src/index.ts - 各ツールのinputSchemaに追加
+   sample_image_size: {
+     type: "string",
+     enum: ["1K", "2K"],
+     description: "Output resolution of generated image (default: 1K). 1K for faster generation, 2K for higher quality.",
+   }
+   ```
+
+5. **API リクエストへの統合**
+   - 各生成関数内でパラメータを Imagen API リクエストに追加
+   - バリデーション: "1K" または "2K" 以外の値を拒否
+   - デフォルト値の処理（省略時は Imagen API のデフォルト "1K" を使用）
+
+**変更ファイル**:
+- `src/types/tools.ts`: 全ての生成系 Args インターフェースに追加
+- `src/index.ts`: スキーマ定義と各ツール関数の更新
+
+**メリット**:
+- ユーザーが品質と生成速度のトレードオフを制御可能
+- 高解像度が必要な場合に 2K を選択（プロダクション向け）
+- 低解像度で高速プロトタイピング（1K）
+- 後方互換性維持（デフォルト値で既存の動作を保証）
+
+**注意点**:
+- 2K 生成は 1K より時間がかかる可能性あり
+- コスト面での違いがあるか要確認（Google Cloud の課金体系）
+- `upscale_image` ツールとの使い分けを明確化
+  - 小さい解像度で生成 → upscale（従来の方法）
+  - 最初から高解像度で生成（新しい方法）
+
+---
+
 ### Phase 1B: Asynchronous Job Management（非同期ジョブ管理）
 **優先度**: 🟡 中（タイムアウト対策により信頼性向上）
 **所要時間**: 4-5時間（SQLite統合含む）
@@ -419,18 +501,27 @@
 1. **Phase 1A'** (customize_image マルチサンプル) - 30分 ✅ 完了
    - 理由: 既存機能との統一、低リスク
 
-2. **Phase 1B + Phase 2 統合** (Async Jobs + History Tracking) - 5-6時間
+2. **Phase 1C** (解像度選択対応) - 1時間 ⬅️ 次の実装推奨
+   - 理由:
+     - ユーザー要望による早期実装
+     - 実装が容易かつ低リスク
+     - 全ての生成ツールで品質制御が可能に
+     - Phase 1B/2 の複雑な実装の前に完了できる小規模改善
+   - メリット: 高解像度生成オプション、プロトタイピング速度向上
+
+3. **Phase 1B + Phase 2 統合** (Async Jobs + History Tracking) - 5-6時間
    - 理由:
      - タイムアウト対策による信頼性向上（Phase 1B）
      - SQLite統合により再起動耐性とメトリクス集計を同時実現
      - 管理性・再現性の大幅向上（Phase 2）
    - 実装順序: Phase 2（DB設計）→ Phase 1B（ジョブ管理）→ 統合テスト
 
-3. **Phase 4** (Templates) - 1-2時間
+4. **Phase 4** (Templates) - 1-2時間
    - 理由: ユーザビリティ向上、チーム共有フロー整備
 
-4. **その他の検討項目** - 適宜
+5. **その他の検討項目** - 適宜
    - ユーザーフィードバックに基づいて優先順位付け
+   - seed パラメータ（Variation生成）
    - メタデータ埋め込み、バッチ処理など
 
 ---
@@ -440,6 +531,8 @@
 ### バージョニング
 - Phase 1A: v0.6.0 としてリリース予定
 - Phase 1A': v0.6.1
+- Phase 1C: v0.6.2（解像度選択対応）
+  - sampleImageSize パラメータ追加（全生成ツール）
 - Phase 1B + Phase 2 統合: v0.7.0（メジャーアップデート）
   - SQLite導入、ジョブ管理、履歴機能
 - Phase 4: v0.8.0
@@ -457,4 +550,4 @@
 ---
 
 **最終更新**: 2025-10-12
-**ステータス**: Phase 1A, Phase 1A' 完了、Phase 1B 以降は未着手
+**ステータス**: Phase 1A, Phase 1A' 完了、Phase 1C が次の実装対象（早期実装推奨）
