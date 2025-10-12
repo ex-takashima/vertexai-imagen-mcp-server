@@ -108,7 +108,9 @@ class GoogleImagenMCPServer {
     this.resourceManager = new ImageResourceManager(outputDir);
 
     // ジョブデータベースの初期化
-    const dbPath = process.env.VERTEXAI_IMAGEN_DB || join(process.cwd(), 'data', 'vertexai-imagen.db');
+    // 環境変数 VERTEXAI_IMAGEN_DB でカスタマイズ可能
+    // デフォルト: [画像保存フォルダ]/data/vertexai-imagen.db
+    const dbPath = process.env.VERTEXAI_IMAGEN_DB || join(outputDir, 'data', 'vertexai-imagen.db');
     this.jobDatabase = new JobDatabase(dbPath);
 
     // ジョブマネージャーの初期化
