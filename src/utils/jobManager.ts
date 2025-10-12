@@ -164,6 +164,7 @@ export class JobManager {
         auth: this.auth,
         resourceManager: this.resourceManager,
         jobManager: this, // 自身を参照（循環参照だが、実行時には既にインスタンス化されている）
+        historyDb: this.db, // 履歴トラッキング用
       };
 
       let result: any;

@@ -13,10 +13,17 @@ import {
   createUriImageResponse,
   createMultiUriImageResponse,
 } from '../utils/image.js';
+import {
+  generateImageUUID,
+  calculateParamsHash,
+  embedMetadata,
+  isMetadataEmbeddingEnabled,
+} from '../utils/metadata.js';
 import { GOOGLE_IMAGEN_EDIT_MODEL } from '../config/constants.js';
 import type { GoogleImagenRequest, GoogleImagenResponse, ReferenceImage } from '../types/api.js';
 import type { CustomizeImageArgs } from '../types/tools.js';
 import type { ToolContext } from './types.js';
+import type { ImageMetadata } from '../types/history.js';
 
 export async function customizeImage(
   context: ToolContext,
@@ -48,7 +55,7 @@ export async function customizeImage(
     sample_image_size,
   } = args;
 
-  const { auth, resourceManager } = context;
+  const { auth, resourceManager, historyDb } = context;
 
   if (!prompt || typeof prompt !== 'string') {
     throw new McpError(
@@ -287,6 +294,39 @@ export async function customizeImage(
     });
   }
 
+  // パラメータハッシュの計算（履歴管理用）
+  const params = {
+    prompt,
+    model,
+    aspect_ratio,
+    safety_level,
+    person_generation,
+    language,
+    sample_count,
+    sample_image_size: sample_image_size || undefined,
+    negative_prompt: negative_prompt || undefined,
+    has_control: hasControl,
+    has_subject: hasSubject,
+    has_style: hasStyle,
+    control_type: hasControl ? control_type : undefined,
+    subject_type: hasSubject ? subject_type : undefined,
+    subject_description: hasSubject ? subject_description : undefined,
+    style_description: hasStyle ? style_description : undefined,
+  };
+  const paramsHash = calculateParamsHash(params);
+
+  // UUID発行（各画像ごと）
+  const imageUUIDs: string[] = [];
+  for (let i = 0; i < sample_count; i++) {
+    imageUUIDs.push(generateImageUUID());
+  }
+
+  const metadataEmbeddingEnabled = isMetadataEmbeddingEnabled();
+
+  if (process.env.DEBUG && metadataEmbeddingEnabled) {
+    console.error(`[DEBUG] Metadata embedding enabled. UUIDs generated: ${imageUUIDs.length}`);
+  }
+
   try {
     const authClient = await auth.getClient();
     const accessToken = await authClient.getAccessToken();
@@ -358,8 +398,29 @@ export async function customizeImage(
 
     for (let i = 0; i < predictions.length; i++) {
       const prediction = predictions[i];
-      const imageBuffer = Buffer.from(prediction.bytesBase64Encoded, 'base64');
+      let imageBuffer: Buffer = Buffer.from(prediction.bytesBase64Encoded, 'base64');
       const absoluteFilePath = filePaths[i];
+      const uuid = imageUUIDs[i];
+
+      // メタデータ埋め込み
+      if (metadataEmbeddingEnabled) {
+        const metadata: ImageMetadata = {
+          vertexai_imagen_uuid: uuid,
+          params_hash: paramsHash,
+          tool_name: 'customize_image',
+          model,
+          created_at: new Date().toISOString(),
+          aspect_ratio,
+          sample_image_size: sample_image_size || undefined,
+        };
+
+        try {
+          imageBuffer = (await embedMetadata(imageBuffer, metadata)) as Buffer;
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : String(error);
+          console.error(`[WARNING] Failed to embed metadata for ${uuid}: ${errorMsg}`);
+        }
+      }
 
       await fs.writeFile(absoluteFilePath, imageBuffer);
 
@@ -373,6 +434,35 @@ export async function customizeImage(
         filePath: displayPath,
         absoluteFilePath,
       });
+
+      // データベースに履歴記録
+      try {
+        historyDb.createImageHistory({
+          uuid,
+          filePath: absoluteFilePath,
+          toolName: 'customize_image',
+          prompt,
+          model,
+          aspectRatio: aspect_ratio,
+          sampleCount: sample_count,
+          sampleImageSize: sample_image_size || undefined,
+          safetyLevel: safety_level,
+          personGeneration: person_generation,
+          language,
+          parameters: JSON.stringify(params),
+          paramsHash,
+          success: true,
+          fileSize: imageBuffer.length,
+          mimeType: prediction.mimeType,
+        });
+
+        if (process.env.DEBUG) {
+          console.error(`[DEBUG] Image history recorded: ${uuid}`);
+        }
+      } catch (dbError) {
+        const errorMsg = dbError instanceof Error ? dbError.message : String(dbError);
+        console.error(`[WARNING] Failed to record image history for ${uuid}: ${errorMsg}`);
+      }
     }
 
     const shouldIncludeThumbnail =

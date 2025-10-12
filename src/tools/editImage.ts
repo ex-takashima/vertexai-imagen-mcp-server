@@ -13,6 +13,12 @@ import {
   createUriImageResponse,
   createMultiUriImageResponse,
 } from '../utils/image.js';
+import {
+  generateImageUUID,
+  calculateParamsHash,
+  embedMetadata,
+  isMetadataEmbeddingEnabled,
+} from '../utils/metadata.js';
 import { GOOGLE_IMAGEN_EDIT_MODEL } from '../config/constants.js';
 import type {
   GoogleImagenEditRequest,
@@ -21,6 +27,7 @@ import type {
 } from '../types/api.js';
 import type { EditImageArgs } from '../types/tools.js';
 import type { ToolContext } from './types.js';
+import type { ImageMetadata } from '../types/history.js';
 
 export async function editImage(
   context: ToolContext,
@@ -48,7 +55,7 @@ export async function editImage(
     sample_image_size,
   } = args;
 
-  const { auth, resourceManager } = context;
+  const { auth, resourceManager, historyDb } = context;
 
   if (!prompt || typeof prompt !== 'string') {
     throw new McpError(
@@ -261,6 +268,33 @@ export async function editImage(
     );
   }
 
+  // パラメータハッシュの計算（履歴管理用）
+  const params = {
+    prompt,
+    model,
+    edit_mode,
+    mask_mode: mask_mode || 'mask_free',
+    mask_dilation,
+    base_steps: base_steps || undefined,
+    guidance_scale: guidance_scale || undefined,
+    sample_count,
+    sample_image_size: sample_image_size || undefined,
+    negative_prompt: negative_prompt || undefined,
+  };
+  const paramsHash = calculateParamsHash(params);
+
+  // UUID発行（各画像ごと）
+  const imageUUIDs: string[] = [];
+  for (let i = 0; i < sample_count; i++) {
+    imageUUIDs.push(generateImageUUID());
+  }
+
+  const metadataEmbeddingEnabled = isMetadataEmbeddingEnabled();
+
+  if (process.env.DEBUG && metadataEmbeddingEnabled) {
+    console.error(`[DEBUG] Metadata embedding enabled. UUIDs generated: ${imageUUIDs.length}`);
+  }
+
   try {
     const authClient = await auth.getClient();
     const accessToken = await authClient.getAccessToken();
@@ -330,8 +364,28 @@ export async function editImage(
 
     for (let i = 0; i < predictions.length; i++) {
       const prediction = predictions[i];
-      const imageBuffer = Buffer.from(prediction.bytesBase64Encoded, 'base64');
+      let imageBuffer: Buffer = Buffer.from(prediction.bytesBase64Encoded, 'base64');
       const absoluteFilePath = filePaths[i];
+      const uuid = imageUUIDs[i];
+
+      // メタデータ埋め込み
+      if (metadataEmbeddingEnabled) {
+        const metadata: ImageMetadata = {
+          vertexai_imagen_uuid: uuid,
+          params_hash: paramsHash,
+          tool_name: 'edit_image',
+          model,
+          created_at: new Date().toISOString(),
+          sample_image_size: sample_image_size || undefined,
+        };
+
+        try {
+          imageBuffer = (await embedMetadata(imageBuffer, metadata)) as Buffer;
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : String(error);
+          console.error(`[WARNING] Failed to embed metadata for ${uuid}: ${errorMsg}`);
+        }
+      }
 
       await fs.writeFile(absoluteFilePath, imageBuffer);
 
@@ -345,6 +399,31 @@ export async function editImage(
         filePath: displayPath,
         absoluteFilePath,
       });
+
+      // データベースに履歴記録
+      try {
+        historyDb.createImageHistory({
+          uuid,
+          filePath: absoluteFilePath,
+          toolName: 'edit_image',
+          prompt,
+          model,
+          sampleCount: sample_count,
+          sampleImageSize: sample_image_size || undefined,
+          parameters: JSON.stringify(params),
+          paramsHash,
+          success: true,
+          fileSize: imageBuffer.length,
+          mimeType: prediction.mimeType,
+        });
+
+        if (process.env.DEBUG) {
+          console.error(`[DEBUG] Image history recorded: ${uuid}`);
+        }
+      } catch (dbError) {
+        const errorMsg = dbError instanceof Error ? dbError.message : String(dbError);
+        console.error(`[WARNING] Failed to record image history for ${uuid}: ${errorMsg}`);
+      }
     }
 
     const shouldIncludeThumbnail =

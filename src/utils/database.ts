@@ -6,6 +6,7 @@ import Database from 'better-sqlite3';
 import { mkdir } from 'fs/promises';
 import { dirname } from 'path';
 import type { Job, JobStatus, JobType } from '../types/job.js';
+import type { ImageRecord, ListHistoryFilters } from '../types/history.js';
 
 export class JobDatabase {
   private db: Database.Database;
@@ -41,6 +42,63 @@ export class JobDatabase {
       CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
       CREATE INDEX IF NOT EXISTS idx_jobs_created_at ON jobs(created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_jobs_type ON jobs(type);
+
+      -- 画像履歴テーブル
+      CREATE TABLE IF NOT EXISTS images (
+        uuid TEXT PRIMARY KEY,
+        file_path TEXT NOT NULL,
+        tool_name TEXT NOT NULL,
+        prompt TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+        model TEXT,
+        aspect_ratio TEXT,
+        sample_count INTEGER,
+        sample_image_size TEXT,
+        safety_level TEXT,
+        person_generation TEXT,
+        language TEXT,
+
+        parameters TEXT NOT NULL,
+        params_hash TEXT NOT NULL,
+
+        success BOOLEAN DEFAULT 1,
+        error_message TEXT,
+
+        file_size INTEGER,
+        mime_type TEXT
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_images_created_at ON images(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_images_tool_name ON images(tool_name);
+      CREATE INDEX IF NOT EXISTS idx_images_model ON images(model);
+      CREATE INDEX IF NOT EXISTS idx_images_params_hash ON images(params_hash);
+
+      -- フルテキスト検索テーブル
+      CREATE VIRTUAL TABLE IF NOT EXISTS images_fts USING fts5(
+        uuid,
+        prompt,
+        parameters,
+        content='images',
+        content_rowid='rowid'
+      );
+
+      -- FTS5トリガー: 挿入時
+      CREATE TRIGGER IF NOT EXISTS images_fts_insert AFTER INSERT ON images BEGIN
+        INSERT INTO images_fts(rowid, uuid, prompt, parameters)
+        VALUES (new.rowid, new.uuid, new.prompt, new.parameters);
+      END;
+
+      -- FTS5トリガー: 削除時
+      CREATE TRIGGER IF NOT EXISTS images_fts_delete AFTER DELETE ON images BEGIN
+        DELETE FROM images_fts WHERE rowid = old.rowid;
+      END;
+
+      -- FTS5トリガー: 更新時
+      CREATE TRIGGER IF NOT EXISTS images_fts_update AFTER UPDATE ON images BEGIN
+        UPDATE images_fts SET uuid = new.uuid, prompt = new.prompt, parameters = new.parameters
+        WHERE rowid = new.rowid;
+      END;
     `);
   }
 
@@ -183,5 +241,214 @@ export class JobDatabase {
    */
   close(): void {
     this.db.close();
+  }
+
+  // =====================================
+  // 画像履歴管理メソッド
+  // =====================================
+
+  /**
+   * 画像履歴を作成
+   */
+  createImageHistory(record: Omit<ImageRecord, 'createdAt'> & { createdAt?: Date }): void {
+    const stmt = this.db.prepare(`
+      INSERT INTO images (
+        uuid, file_path, tool_name, prompt, created_at,
+        model, aspect_ratio, sample_count, sample_image_size,
+        safety_level, person_generation, language,
+        parameters, params_hash,
+        success, error_message,
+        file_size, mime_type
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    stmt.run(
+      record.uuid,
+      record.filePath,
+      record.toolName,
+      record.prompt,
+      record.createdAt ? record.createdAt.toISOString() : new Date().toISOString(),
+      record.model || null,
+      record.aspectRatio || null,
+      record.sampleCount || null,
+      record.sampleImageSize || null,
+      record.safetyLevel || null,
+      record.personGeneration || null,
+      record.language || null,
+      record.parameters,
+      record.paramsHash,
+      record.success ? 1 : 0,
+      record.errorMessage || null,
+      record.fileSize || null,
+      record.mimeType || null
+    );
+  }
+
+  /**
+   * 画像履歴をUUIDで取得
+   */
+  getImageHistory(uuid: string): ImageRecord | null {
+    const stmt = this.db.prepare(`
+      SELECT * FROM images WHERE uuid = ?
+    `);
+
+    const row = stmt.get(uuid) as any;
+    if (!row) return null;
+
+    return this.rowToImageRecord(row);
+  }
+
+  /**
+   * 画像履歴一覧を取得
+   */
+  listImageHistory(
+    filters?: ListHistoryFilters,
+    sortBy: 'created_at' | 'file_size' = 'created_at',
+    sortOrder: 'asc' | 'desc' = 'desc',
+    limit: number = 50,
+    offset: number = 0
+  ): ImageRecord[] {
+    let query = 'SELECT * FROM images WHERE 1=1';
+    const params: any[] = [];
+
+    if (filters) {
+      if (filters.tool_name) {
+        query += ' AND tool_name = ?';
+        params.push(filters.tool_name);
+      }
+      if (filters.model) {
+        query += ' AND model = ?';
+        params.push(filters.model);
+      }
+      if (filters.aspect_ratio) {
+        query += ' AND aspect_ratio = ?';
+        params.push(filters.aspect_ratio);
+      }
+      if (filters.date_from) {
+        query += ' AND created_at >= ?';
+        params.push(filters.date_from);
+      }
+      if (filters.date_to) {
+        query += ' AND created_at <= ?';
+        params.push(filters.date_to);
+      }
+    }
+
+    query += ` ORDER BY ${sortBy} ${sortOrder.toUpperCase()} LIMIT ? OFFSET ?`;
+    params.push(limit, offset);
+
+    const stmt = this.db.prepare(query);
+    const rows = stmt.all(...params) as any[];
+
+    return rows.map(row => this.rowToImageRecord(row));
+  }
+
+  /**
+   * 画像履歴を検索（フルテキスト検索）
+   */
+  searchImageHistory(
+    searchQuery: string,
+    filters?: ListHistoryFilters,
+    limit: number = 50
+  ): ImageRecord[] {
+    let query = `
+      SELECT images.* FROM images
+      INNER JOIN images_fts ON images.rowid = images_fts.rowid
+      WHERE images_fts MATCH ?
+    `;
+    const params: any[] = [searchQuery];
+
+    if (filters) {
+      if (filters.tool_name) {
+        query += ' AND images.tool_name = ?';
+        params.push(filters.tool_name);
+      }
+      if (filters.model) {
+        query += ' AND images.model = ?';
+        params.push(filters.model);
+      }
+      if (filters.aspect_ratio) {
+        query += ' AND images.aspect_ratio = ?';
+        params.push(filters.aspect_ratio);
+      }
+      if (filters.date_from) {
+        query += ' AND images.created_at >= ?';
+        params.push(filters.date_from);
+      }
+      if (filters.date_to) {
+        query += ' AND images.created_at <= ?';
+        params.push(filters.date_to);
+      }
+    }
+
+    query += ' ORDER BY images.created_at DESC LIMIT ?';
+    params.push(limit);
+
+    const stmt = this.db.prepare(query);
+    const rows = stmt.all(...params) as any[];
+
+    return rows.map(row => this.rowToImageRecord(row));
+  }
+
+  /**
+   * 画像履歴を削除
+   */
+  deleteImageHistory(uuid: string): boolean {
+    const stmt = this.db.prepare(`
+      DELETE FROM images WHERE uuid = ?
+    `);
+
+    const result = stmt.run(uuid);
+    return result.changes > 0;
+  }
+
+  /**
+   * パラメータハッシュで画像履歴を検索
+   */
+  findImagesByParamsHash(paramsHash: string): ImageRecord[] {
+    const stmt = this.db.prepare(`
+      SELECT * FROM images WHERE params_hash = ? ORDER BY created_at DESC
+    `);
+
+    const rows = stmt.all(paramsHash) as any[];
+    return rows.map(row => this.rowToImageRecord(row));
+  }
+
+  /**
+   * 画像履歴のファイルパスを更新
+   */
+  updateImageFilePath(uuid: string, newFilePath: string): boolean {
+    const stmt = this.db.prepare(`
+      UPDATE images SET file_path = ? WHERE uuid = ?
+    `);
+
+    const result = stmt.run(newFilePath, uuid);
+    return result.changes > 0;
+  }
+
+  /**
+   * データベース行をImageRecordオブジェクトに変換
+   */
+  private rowToImageRecord(row: any): ImageRecord {
+    return {
+      uuid: row.uuid,
+      filePath: row.file_path,
+      toolName: row.tool_name,
+      prompt: row.prompt,
+      createdAt: new Date(row.created_at),
+      model: row.model || undefined,
+      aspectRatio: row.aspect_ratio || undefined,
+      sampleCount: row.sample_count || undefined,
+      sampleImageSize: row.sample_image_size || undefined,
+      safetyLevel: row.safety_level || undefined,
+      personGeneration: row.person_generation || undefined,
+      language: row.language || undefined,
+      parameters: row.parameters,
+      paramsHash: row.params_hash,
+      success: row.success === 1,
+      errorMessage: row.error_message || undefined,
+      fileSize: row.file_size || undefined,
+      mimeType: row.mime_type || undefined,
+    };
   }
 }

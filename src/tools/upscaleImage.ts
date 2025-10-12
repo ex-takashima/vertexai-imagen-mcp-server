@@ -12,9 +12,16 @@ import {
   createImageResponse,
   createUriImageResponse,
 } from '../utils/image.js';
+import {
+  generateImageUUID,
+  calculateParamsHash,
+  embedMetadata,
+  isMetadataEmbeddingEnabled,
+} from '../utils/metadata.js';
 import type { GoogleUpscaleRequest, GoogleImagenResponse } from '../types/api.js';
 import type { UpscaleImageArgs } from '../types/tools.js';
 import type { ToolContext } from './types.js';
+import type { ImageMetadata } from '../types/history.js';
 
 export async function upscaleImage(
   context: ToolContext,
@@ -29,7 +36,7 @@ export async function upscaleImage(
     region,
   } = args;
 
-  const { auth, resourceManager } = context;
+  const { auth, resourceManager, historyDb } = context;
 
   if (!input_path || typeof input_path !== 'string') {
     throw new McpError(
@@ -40,6 +47,23 @@ export async function upscaleImage(
 
   if (process.env.DEBUG) {
     console.error(`[DEBUG] upscale_image: scale=${scale_factor}`);
+  }
+
+  // パラメータハッシュの計算（履歴管理用）
+  const params = {
+    input_path,
+    scale_factor,
+    tool: 'upscale_image',
+  };
+  const paramsHash = calculateParamsHash(params);
+
+  // UUID発行
+  const uuid = generateImageUUID();
+
+  const metadataEmbeddingEnabled = isMetadataEmbeddingEnabled();
+
+  if (process.env.DEBUG && metadataEmbeddingEnabled) {
+    console.error(`[DEBUG] Metadata embedding enabled. UUID: ${uuid}`);
   }
 
   try {
@@ -94,7 +118,7 @@ export async function upscaleImage(
     }
 
     const upscaledImage = response.data.predictions[0];
-    const imageBuffer = Buffer.from(upscaledImage.bytesBase64Encoded, 'base64');
+    let imageBuffer: Buffer = Buffer.from(upscaledImage.bytesBase64Encoded, 'base64');
 
     if (return_base64) {
       console.error(
@@ -116,6 +140,24 @@ export async function upscaleImage(
       );
     }
 
+    // メタデータ埋め込み
+    if (metadataEmbeddingEnabled) {
+      const metadata: ImageMetadata = {
+        vertexai_imagen_uuid: uuid,
+        params_hash: paramsHash,
+        tool_name: 'upscale_image',
+        model: 'imagen-upscale',
+        created_at: new Date().toISOString(),
+      };
+
+      try {
+        imageBuffer = (await embedMetadata(imageBuffer, metadata)) as Buffer;
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        console.error(`[WARNING] Failed to embed metadata for ${uuid}: ${errorMsg}`);
+      }
+    }
+
     await fs.writeFile(normalizedPath, imageBuffer);
     const displayPath = getDisplayPath(normalizedPath);
     const fileUri = resourceManager.getFileUri(normalizedPath);
@@ -124,6 +166,30 @@ export async function upscaleImage(
       include_thumbnail !== undefined
         ? include_thumbnail
         : process.env.VERTEXAI_IMAGEN_THUMBNAIL === 'true';
+
+    // データベースに履歴記録
+    try {
+      historyDb.createImageHistory({
+        uuid,
+        filePath: normalizedPath,
+        toolName: 'upscale_image',
+        prompt: `Upscale ${scale_factor}x: ${input_path}`,
+        model: 'imagen-upscale',
+        sampleCount: 1,
+        parameters: JSON.stringify(params),
+        paramsHash,
+        success: true,
+        fileSize: imageBuffer.length,
+        mimeType: upscaledImage.mimeType,
+      });
+
+      if (process.env.DEBUG) {
+        console.error(`[DEBUG] Image history recorded: ${uuid}`);
+      }
+    } catch (dbError) {
+      const errorMsg = dbError instanceof Error ? dbError.message : String(dbError);
+      console.error(`[WARNING] Failed to record image history for ${uuid}: ${errorMsg}`);
+    }
 
     return await createUriImageResponse(
       fileUri,

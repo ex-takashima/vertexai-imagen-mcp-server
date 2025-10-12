@@ -33,6 +33,11 @@ import type {
   CancelJobArgs,
   ListJobsArgs
 } from './types/job.js';
+import type {
+  ListHistoryArgs,
+  GetHistoryByUuidArgs,
+  SearchHistoryArgs
+} from './types/history.js';
 import type { ToolContext } from './tools/types.js';
 import { generateImage as handleGenerateImage } from './tools/generateImage.js';
 import { editImage as handleEditImage } from './tools/editImage.js';
@@ -46,6 +51,9 @@ import { checkJobStatus as handleCheckJobStatus } from './tools/checkJobStatus.j
 import { getJobResult as handleGetJobResult } from './tools/getJobResult.js';
 import { cancelJob as handleCancelJob } from './tools/cancelJob.js';
 import { listJobs as handleListJobs } from './tools/listJobs.js';
+import { listHistory as handleListHistory } from './tools/listHistory.js';
+import { getHistoryByUuid as handleGetHistoryByUuid } from './tools/getHistoryByUuid.js';
+import { searchHistory as handleSearchHistory } from './tools/searchHistory.js';
 
 const require = createRequire(import.meta.url);
 const { version: PACKAGE_VERSION } = require('../package.json') as { version: string };
@@ -62,6 +70,9 @@ const TOOL_CHECK_JOB_STATUS = "check_job_status";
 const TOOL_GET_JOB_RESULT = "get_job_result";
 const TOOL_CANCEL_JOB = "cancel_job";
 const TOOL_LIST_JOBS = "list_jobs";
+const TOOL_LIST_HISTORY = "list_history";
+const TOOL_GET_HISTORY_BY_UUID = "get_history_by_uuid";
+const TOOL_SEARCH_HISTORY = "search_history";
 
 class GoogleImagenMCPServer {
   private server: Server;
@@ -112,7 +123,8 @@ class GoogleImagenMCPServer {
     this.toolContext = {
       auth: this.auth,
       resourceManager: this.resourceManager,
-      jobManager: this.jobManager
+      jobManager: this.jobManager,
+      historyDb: this.jobDatabase
     };
 
     this.setupToolHandlers();
@@ -686,6 +698,117 @@ It should be run by an MCP client like Claude Desktop.
                 }
               },
             },
+          },
+          {
+            name: TOOL_LIST_HISTORY,
+            description: "List image generation history with optional filtering and sorting. Shows UUID, prompt, model, timestamps, and file paths.",
+            inputSchema: {
+              type: "object",
+              properties: {
+                filters: {
+                  type: "object",
+                  properties: {
+                    tool_name: {
+                      type: "string",
+                      description: "Filter by tool name (generate_image, edit_image, customize_image, etc.)",
+                    },
+                    model: {
+                      type: "string",
+                      description: "Filter by model name (e.g., imagen-3.0-generate-002)",
+                    },
+                    aspect_ratio: {
+                      type: "string",
+                      description: "Filter by aspect ratio (1:1, 16:9, etc.)",
+                    },
+                    date_from: {
+                      type: "string",
+                      description: "Filter by start date (ISO 8601 format)",
+                    },
+                    date_to: {
+                      type: "string",
+                      description: "Filter by end date (ISO 8601 format)",
+                    },
+                  },
+                  description: "Optional filters to narrow down results",
+                },
+                sort_by: {
+                  type: "string",
+                  enum: ["created_at", "file_size"],
+                  description: "Sort by field (default: created_at)",
+                },
+                sort_order: {
+                  type: "string",
+                  enum: ["asc", "desc"],
+                  description: "Sort order (default: desc)",
+                },
+                limit: {
+                  type: "integer",
+                  description: "Maximum number of results to return (default: 50)",
+                },
+                offset: {
+                  type: "integer",
+                  description: "Offset for pagination (default: 0)",
+                },
+              },
+            },
+          },
+          {
+            name: TOOL_GET_HISTORY_BY_UUID,
+            description: "Get detailed information about a specific image by its UUID. Returns full parameters, metadata, and file information.",
+            inputSchema: {
+              type: "object",
+              properties: {
+                uuid: {
+                  type: "string",
+                  description: "UUID of the image to retrieve",
+                },
+              },
+              required: ["uuid"],
+            },
+          },
+          {
+            name: TOOL_SEARCH_HISTORY,
+            description: "Search image history using full-text search on prompts and parameters. Useful for finding images by keywords.",
+            inputSchema: {
+              type: "object",
+              properties: {
+                query: {
+                  type: "string",
+                  description: "Search query (searches in prompts and parameters)",
+                },
+                limit: {
+                  type: "integer",
+                  description: "Maximum number of results to return (default: 50)",
+                },
+                filters: {
+                  type: "object",
+                  properties: {
+                    tool_name: {
+                      type: "string",
+                      description: "Filter by tool name",
+                    },
+                    model: {
+                      type: "string",
+                      description: "Filter by model name",
+                    },
+                    aspect_ratio: {
+                      type: "string",
+                      description: "Filter by aspect ratio",
+                    },
+                    date_from: {
+                      type: "string",
+                      description: "Filter by start date (ISO 8601 format)",
+                    },
+                    date_to: {
+                      type: "string",
+                      description: "Filter by end date (ISO 8601 format)",
+                    },
+                  },
+                  description: "Optional additional filters",
+                },
+              },
+              required: ["query"],
+            },
           }
         ],
       };
@@ -720,6 +843,12 @@ It should be run by an MCP client like Claude Desktop.
             return await this.cancelJob(args as unknown as CancelJobArgs);
           case TOOL_LIST_JOBS:
             return await this.listJobs(args as unknown as ListJobsArgs);
+          case TOOL_LIST_HISTORY:
+            return await this.listHistory(args as unknown as ListHistoryArgs);
+          case TOOL_GET_HISTORY_BY_UUID:
+            return await this.getHistoryByUuid(args as unknown as GetHistoryByUuidArgs);
+          case TOOL_SEARCH_HISTORY:
+            return await this.searchHistory(args as unknown as SearchHistoryArgs);
           default:
             throw new McpError(
               ErrorCode.MethodNotFound,
@@ -784,6 +913,18 @@ It should be run by an MCP client like Claude Desktop.
 
   private async listJobs(args: ListJobsArgs) {
     return await handleListJobs(this.toolContext, args);
+  }
+
+  private async listHistory(args: ListHistoryArgs) {
+    return await handleListHistory(this.toolContext, args);
+  }
+
+  private async getHistoryByUuid(args: GetHistoryByUuidArgs) {
+    return await handleGetHistoryByUuid(this.toolContext, args);
+  }
+
+  private async searchHistory(args: SearchHistoryArgs) {
+    return await handleSearchHistory(this.toolContext, args);
   }
 
   private setupResourceHandlers() {

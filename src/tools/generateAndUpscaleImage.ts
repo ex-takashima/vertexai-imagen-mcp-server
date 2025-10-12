@@ -5,6 +5,12 @@ import {
   getDisplayPath,
 } from '../utils/path.js';
 import { createUriImageResponse } from '../utils/image.js';
+import {
+  generateImageUUID,
+  calculateParamsHash,
+  embedMetadata,
+  isMetadataEmbeddingEnabled,
+} from '../utils/metadata.js';
 import { generateImage } from './generateImage.js';
 import { upscaleImage } from './upscaleImage.js';
 import type {
@@ -13,6 +19,7 @@ import type {
   UpscaleImageArgs,
 } from '../types/tools.js';
 import type { ToolContext } from './types.js';
+import type { ImageMetadata } from '../types/history.js';
 
 export async function generateAndUpscaleImage(
   context: ToolContext,
@@ -56,6 +63,30 @@ export async function generateAndUpscaleImage(
     console.error(
       `[DEBUG] generate_and_upscale: model=${model}, aspect=${aspect_ratio}, scale=${scale_factor}`,
     );
+  }
+
+  const { historyDb } = context;
+
+  // パラメータハッシュの計算（履歴管理用）
+  const params = {
+    prompt,
+    model,
+    aspect_ratio,
+    safety_level,
+    person_generation,
+    language,
+    scale_factor,
+    sample_image_size: sample_image_size || undefined,
+  };
+  const paramsHash = calculateParamsHash(params);
+
+  // UUID発行
+  const uuid = generateImageUUID();
+
+  const metadataEmbeddingEnabled = isMetadataEmbeddingEnabled();
+
+  if (process.env.DEBUG && metadataEmbeddingEnabled) {
+    console.error(`[DEBUG] Metadata embedding enabled. UUID: ${uuid}`);
   }
 
   const tempImageTimestamp = Date.now();
@@ -149,6 +180,61 @@ export async function generateAndUpscaleImage(
       include_thumbnail !== undefined
         ? include_thumbnail
         : process.env.VERTEXAI_IMAGEN_THUMBNAIL === 'true';
+
+    // Re-embed metadata for the composite operation
+    if (metadataEmbeddingEnabled) {
+      try {
+        let imageBuffer = await fs.readFile(normalizedPath);
+        const metadata: ImageMetadata = {
+          vertexai_imagen_uuid: uuid,
+          params_hash: paramsHash,
+          tool_name: 'generate_and_upscale_image',
+          model,
+          created_at: new Date().toISOString(),
+          aspect_ratio,
+          sample_image_size: sample_image_size || undefined,
+        };
+
+        imageBuffer = (await embedMetadata(imageBuffer, metadata)) as Buffer;
+        await fs.writeFile(normalizedPath, imageBuffer);
+
+        if (process.env.DEBUG) {
+          console.error(`[DEBUG] Re-embedded metadata for generate_and_upscale: ${uuid}`);
+        }
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        console.error(`[WARNING] Failed to re-embed metadata for ${uuid}: ${errorMsg}`);
+      }
+    }
+
+    // データベースに履歴記録
+    try {
+      historyDb.createImageHistory({
+        uuid,
+        filePath: normalizedPath,
+        toolName: 'generate_and_upscale_image',
+        prompt,
+        model,
+        aspectRatio: aspect_ratio,
+        sampleCount: 1,
+        sampleImageSize: sample_image_size || undefined,
+        safetyLevel: safety_level,
+        personGeneration: person_generation,
+        language,
+        parameters: JSON.stringify(params),
+        paramsHash,
+        success: true,
+        fileSize: size,
+        mimeType,
+      });
+
+      if (process.env.DEBUG) {
+        console.error(`[DEBUG] Image history recorded: ${uuid}`);
+      }
+    } catch (dbError) {
+      const errorMsg = dbError instanceof Error ? dbError.message : String(dbError);
+      console.error(`[WARNING] Failed to record image history for ${uuid}: ${errorMsg}`);
+    }
 
     return await createUriImageResponse(
       fileUri,
