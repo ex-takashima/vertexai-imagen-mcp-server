@@ -65,11 +65,14 @@
    - 許可値: `"1K"` | `"2K"`
    - デフォルト: `"1K"`
    - 用途: 生成画像の出力解像度を指定
-   - **重要な制約**: `"2K"` は以下のImagen-4.0モデルのみ対応
+   - **重要な制約**: `"2K"` は以下の2モデルのみ対応
      - `imagen-4.0-generate-001` （Imagen-4 標準モデル）
-     - `imagen-4.0-fast-generate-001` （Imagen-4 Fast 高速モデル）
      - `imagen-4.0-ultra-generate-001` （Imagen-4 Ultra 最高品質モデル）
-   - Imagen-3系モデル（`imagen-3.0-*`）では1Kのみサポート
+   - 以下のモデルは1Kのみサポート
+     - `imagen-4.0-fast-generate-001` （Imagen-4 Fast - 1Kのみ）
+     - `imagen-3.0-generate-002` （Imagen-3 標準）
+     - `imagen-3.0-fast-generate-001` （Imagen-3 Fast）
+     - `imagen-3.0-capability-001` （Imagen-3 Capability - 編集/カスタマイズ用）
 
 2. **対象ツール**
    - `generate_image`: 画像生成時の解像度選択
@@ -125,19 +128,19 @@
 
 **メリット**:
 - ユーザーが品質と生成速度のトレードオフを制御可能
-- 高解像度が必要な場合に 2K を選択（プロダクション向け、Imagen-4モデルのみ）
+- 高解像度が必要な場合に 2K を選択（プロダクション向け、imagen-4.0-generate-001 / ultra のみ）
 - 低解像度で高速プロトタイピング（1K、全モデル対応）
 - 後方互換性維持（デフォルト値で既存の動作を保証）
 
 **注意点**:
-- **モデル制約**: 2K は Imagen-4.0 モデルのみサポート
-  - 対応: `imagen-4.0-generate-001`, `imagen-4.0-fast-generate-001`, `imagen-4.0-ultra-generate-001`
-  - 非対応: Imagen-3系モデル（`imagen-3.0-generate-002`, `imagen-3.0-fast-generate-001`, `imagen-3.0-capability-001`）
+- **モデル制約**: 2K は特定の2モデルのみサポート
+  - ✅ 2K対応: `imagen-4.0-generate-001`, `imagen-4.0-ultra-generate-001`
+  - ❌ 1Kのみ: `imagen-4.0-fast-generate-001`（Fast版は2K非対応）, `imagen-3.0-generate-002`, `imagen-3.0-fast-generate-001`, `imagen-3.0-capability-001`
 - 2K 生成は 1K より時間がかかる可能性あり
 - コスト面での違いがあるか要確認（Google Cloud の課金体系）
 - `upscale_image` ツールとの使い分けを明確化
   - 小さい解像度で生成 → upscale（従来の方法、全モデル対応）
-  - 最初から高解像度で生成（新しい方法、Imagen-4のみ）
+  - 最初から高解像度で生成（新しい方法、imagen-4.0-generate-001 / ultra のみ）
 - **バリデーション実装**: 非対応モデルで2Kが指定された場合はエラーを返す
 
 ---
