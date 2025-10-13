@@ -1,5 +1,63 @@
 # Release Notes
 
+## v0.6.1 (2025-10-13)
+
+### ✨ 新機能
+
+#### customize_image_from_yaml_inline ツールの追加
+- **追加**: YAMLファイルの代わりに、YAML内容を文字列として直接チャットに貼り付けて画像カスタマイズを実行できる新ツール `customize_image_from_yaml_inline` を追加
+  - **用途**: ファイル不要で、YAMLをチャット内で直接編集・実行可能
+  - **メリット**:
+    - ✅ YAMLファイルを作成せずに直接実行
+    - ✅ チャット内で設定をその場で調整可能
+    - ✅ YAML内容をコピー&ペーストで共有しやすい
+    - ✅ テスト実行や一時的な設定に最適
+  - **パラメータ**: `yaml_content` (YAML設定内容の文字列)
+  - **構造**: `customize_image_from_yaml` と同じYAML構造をサポート
+
+#### YAML解析機能の拡張
+- **追加**: `parseYamlString()` 関数 - YAML文字列を直接パース
+- **追加**: `parseYamlStringToCustomizeArgs()` 関数 - YAML文字列から CustomizeImageArgs を生成
+- **リファクタリング**: `loadYamlConfig()` が `parseYamlString()` を使用するように改善し、コードの重複を削減
+
+### 🐛 バグ修正
+
+#### 入力画像パスへの誤った自動連番付加を修正
+- **修正**: `yamlParser.ts` で入力画像パス（subject/control/style）に対して、誤って自動連番機能（`_1`, `_2`）が適用されていた問題を修正
+  - **根本原因**: `normalizeAndValidatePath()` 関数のデフォルトパラメータ `autoNumbering: true` が、出力パス用の設定だったが、入力パス（読み取り専用）にも適用されていた
+  - **影響**: 既存ファイルを読み込む際に、ファイル名が変更され「ファイルが見つからない」エラーが発生
+  - **解決策**: 入力パス処理時に明示的に `autoNumbering: false` を指定
+  - **修正箇所**:
+    - Subject images のパス解決（行 274）
+    - Control image のパス解決（行 296）
+    - Style image のパス解決（行 308）
+
+### 📝 ドキュメント更新
+- **追加**: README.md にインラインYAMLツールのドキュメントを追加（セクション 4-2）
+- **追加**: ファイルパス版とインライン版の使い分け比較表
+- **追加**: 使用例とメリット・注意事項の説明
+
+### 影響を受けるツール
+- `customize_image_from_yaml` - バグ修正により、入力画像パスが正しく解決されるようになりました
+- `customize_image_from_yaml_inline` - 新規追加
+
+### 技術詳細
+
+#### 変更されたファイル
+- `src/types/yamlConfig.ts` - `CustomizeImageFromYamlInlineArgs` インターフェース追加
+- `src/utils/yamlParser.ts` - YAML文字列パース機能追加、autoNumbering バグ修正
+- `src/tools/customizeImageFromYamlInline.ts` - 新規ツール実装
+- `src/index.ts` - 新ツールの統合（ツール定義、スイッチケース、プライベートメソッド）
+- `README.md` - インラインYAMLツールのドキュメント追加
+
+### 破壊的変更
+なし
+
+### 移行ガイド
+変更は完全に後方互換性を保っています。既存のコードは変更なしで動作します。バグ修正により、YAML設定での入力画像パス指定がより確実に動作するようになりました。
+
+---
+
 ## v0.5.3 (2025-10-12)
 
 ### 🐛 重要なバグ修正
