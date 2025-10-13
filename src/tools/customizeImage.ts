@@ -185,6 +185,7 @@ export async function customizeImage(
     const resolvedSubjectType =
       subjectTypeMap[subject_type as keyof typeof subjectTypeMap] || 'SUBJECT_TYPE_DEFAULT';
 
+    const subjectRefId = currentRefId;
     for (const subjectImage of subject_images) {
       const { image_base64, image_path } = subjectImage;
       const subjectSource = await resolveImageSource({
@@ -203,7 +204,7 @@ export async function customizeImage(
 
       referenceImages.push({
         referenceType: 'REFERENCE_TYPE_SUBJECT',
-        referenceId: currentRefId++,
+        referenceId: subjectRefId,
         referenceImage: {
           bytesBase64Encoded: subjectSource.base64,
           ...(subjectSource.mimeType ? { mimeType: subjectSource.mimeType } : {}),
@@ -214,6 +215,7 @@ export async function customizeImage(
         },
       });
     }
+    currentRefId++;
   }
 
   if (hasStyle) {
