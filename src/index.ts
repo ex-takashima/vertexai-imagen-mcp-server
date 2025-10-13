@@ -47,10 +47,13 @@ import type {
   DeleteTemplateArgs,
   UpdateTemplateArgs
 } from './types/template.js';
+import type { CustomizeImageFromYamlArgs, CustomizeImageFromYamlInlineArgs } from './types/yamlConfig.js';
 import type { ToolContext } from './tools/types.js';
 import { generateImage as handleGenerateImage } from './tools/generateImage.js';
 import { editImage as handleEditImage } from './tools/editImage.js';
 import { customizeImage as handleCustomizeImage } from './tools/customizeImage.js';
+import { customizeImageFromYaml as handleCustomizeImageFromYaml } from './tools/customizeImageFromYaml.js';
+import { customizeImageFromYamlInline as handleCustomizeImageFromYamlInline } from './tools/customizeImageFromYamlInline.js';
 import { upscaleImage as handleUpscaleImage } from './tools/upscaleImage.js';
 import { generateAndUpscaleImage as handleGenerateAndUpscaleImage } from './tools/generateAndUpscaleImage.js';
 import { listGeneratedImages as handleListGeneratedImages } from './tools/listGeneratedImages.js';
@@ -80,6 +83,8 @@ const TOOL_GENERATE_AND_UPSCALE_IMAGE = "generate_and_upscale_image";
 const TOOL_LIST_GENERATED_IMAGES = "list_generated_images";
 const TOOL_EDIT_IMAGE = "edit_image";
 const TOOL_CUSTOMIZE_IMAGE = "customize_image";
+const TOOL_CUSTOMIZE_IMAGE_FROM_YAML = "customize_image_from_yaml";
+const TOOL_CUSTOMIZE_IMAGE_FROM_YAML_INLINE = "customize_image_from_yaml_inline";
 const TOOL_LIST_SEMANTIC_CLASSES = "list_semantic_classes";
 const TOOL_START_GENERATION_JOB = "start_generation_job";
 const TOOL_CHECK_JOB_STATUS = "check_job_status";
@@ -646,6 +651,36 @@ It should be run by an MCP client like Claude Desktop.
             },
           },
           {
+            name: TOOL_CUSTOMIZE_IMAGE_FROM_YAML,
+            description: "Generate an image with customization using a YAML configuration file. Simplifies complex parameter management for customize_image operations. Images are saved to ~/Downloads/vertexai-imagen-files by default (customizable via VERTEXAI_IMAGEN_OUTPUT_DIR environment variable).",
+            inputSchema: {
+              type: "object",
+              properties: {
+                yaml_path: {
+                  type: "string",
+                  description: "Path to the YAML configuration file containing all customization parameters (prompt, reference images, settings, etc.)",
+                }
+              },
+              required: ["yaml_path"],
+              description: "Load all customize_image parameters from a YAML file. The YAML file should contain: model, output_path, prompt, and at least one of subjects/control/style. See documentation for complete YAML format specification."
+            },
+          },
+          {
+            name: TOOL_CUSTOMIZE_IMAGE_FROM_YAML_INLINE,
+            description: "Generate an image with customization using YAML content pasted directly into chat. Same functionality as customize_image_from_yaml but accepts YAML as a string parameter instead of file path. Images are saved to ~/Downloads/vertexai-imagen-files by default (customizable via VERTEXAI_IMAGEN_OUTPUT_DIR environment variable).",
+            inputSchema: {
+              type: "object",
+              properties: {
+                yaml_content: {
+                  type: "string",
+                  description: "YAML configuration content as a string containing all customization parameters (prompt, reference images, settings, etc.)",
+                }
+              },
+              required: ["yaml_content"],
+              description: "Load all customize_image parameters from inline YAML content. The YAML content should contain: model, output_path, prompt, and at least one of subjects/control/style. See documentation for complete YAML format specification."
+            },
+          },
+          {
             name: TOOL_START_GENERATION_JOB,
             description: "Start an asynchronous image generation job. Returns a job ID immediately for tracking. Use this for long-running operations to avoid timeouts.",
             inputSchema: {
@@ -1008,6 +1043,10 @@ It should be run by an MCP client like Claude Desktop.
             return await this.generateAndUpscaleImage(args as unknown as GenerateAndUpscaleImageArgs);
           case TOOL_CUSTOMIZE_IMAGE:
             return await this.customizeImage(args as unknown as CustomizeImageArgs);
+          case TOOL_CUSTOMIZE_IMAGE_FROM_YAML:
+            return await this.customizeImageFromYaml(args as unknown as CustomizeImageFromYamlArgs);
+          case TOOL_CUSTOMIZE_IMAGE_FROM_YAML_INLINE:
+            return await this.customizeImageFromYamlInline(args as unknown as CustomizeImageFromYamlInlineArgs);
           case TOOL_LIST_GENERATED_IMAGES:
             return await this.listGeneratedImages(args as unknown as ListGeneratedImagesArgs);
           case TOOL_LIST_SEMANTIC_CLASSES:
@@ -1082,6 +1121,14 @@ It should be run by an MCP client like Claude Desktop.
 
   private async customizeImage(args: CustomizeImageArgs) {
     return await handleCustomizeImage(this.toolContext, args);
+  }
+
+  private async customizeImageFromYaml(args: CustomizeImageFromYamlArgs) {
+    return await handleCustomizeImageFromYaml(this.toolContext, args);
+  }
+
+  private async customizeImageFromYamlInline(args: CustomizeImageFromYamlInlineArgs) {
+    return await handleCustomizeImageFromYamlInline(this.toolContext, args);
   }
 
   private async listSemanticClasses(args: ListSemanticClassesArgs) {

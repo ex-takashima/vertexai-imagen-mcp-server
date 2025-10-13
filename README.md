@@ -14,6 +14,7 @@ Vertex AI の Imagen API を使用して画像を生成・編集できる MCP（
 
 - 🎨 **画像生成**：テキストから高品質な画像を生成
 - ✨ **画像カスタマイズ（NEW!）**：参照画像を使った高度な画像生成（構造制御、被写体一貫性、スタイル転送）
+- 📝 **YAML設定ファイル対応（NEW!）**：複雑なカスタマイズパラメータをYAMLで管理、テンプレート再利用が可能
 - ✂️ **高度な画像編集**：AIマスク生成、セマンティック編集、背景置換対応
 - 🎭 **マスクなし編集**：プロンプトのみで簡単に画像編集
 - 🎯 **5つのマスクモード**：マスクフリー、手動マスク、背景自動検出、前景自動検出、セマンティック分割
@@ -609,7 +610,7 @@ subject_images: [
   { image_path: "person1.jpg" },
   { image_path: "person2.jpg" }  # 複数指定で品質向上
 ]
-subject_description: "a man with short hair"  # 必須
+subject_description: "a man with short hair"  # 必須（被写体の説明）
 subject_type: "person" | "animal" | "product" | "default"  # 必須
 ```
 
@@ -636,7 +637,7 @@ subject_type: "animal"
 
 ```text
 style_image_path: "art_style.jpg"  # または style_image_base64
-style_description: "Van Gogh painting style"  # 省略可
+style_description: "Van Gogh painting style"  # 省略可（推奨：記述することで精度向上）
 ```
 
 **使用例:**
@@ -682,7 +683,169 @@ style_description: "Renaissance painting style"
 
 ---
 
-### 4. `upscale_image`
+### 4. `customize_image_from_yaml` - YAML設定ファイルから画像カスタマイズ ⭐ **NEW!**
+
+複雑な `customize_image` のパラメータをYAML設定ファイルで管理できます。テンプレートを再利用したり、複数の参照画像を整理して指定できます。
+
+#### 基本パラメータ
+* `yaml_path`（必須）: YAML設定ファイルのパス（絶対パスまたは相対パス）
+
+#### YAML設定ファイルの構造
+
+YAML設定ファイルには、`customize_image` ツールのすべてのパラメータを記述できます：
+
+```yaml
+# 基本設定（必須）
+model: "imagen-3.0-capability-001"
+output_path: "./output/my_image.png"
+prompt: "A portrait of [1] in the style of [2]"
+
+# 参照画像設定
+subjects:
+  - reference_id: 1
+    images:
+      - "./images/person1.jpg"
+      - "./images/person2.jpg"
+    config:
+      type: "person"
+      description: "a young woman with long hair"  # 必須
+
+style:
+  reference_id: 2
+  image_path: "./images/art_style.jpg"
+  description: "impressionist painting style"  # 省略可能
+
+# その他のパラメータ
+aspect_ratio: "3:4"
+sample_count: 2
+safety_level: "BLOCK_MEDIUM_AND_ABOVE"
+```
+
+#### 使用例
+
+```text
+templates/customize/04_with-style.yaml の設定で画像を生成してください
+```
+
+#### サンプルテンプレート
+
+このリポジトリには以下のサンプルテンプレートが含まれています：
+
+* `templates/customize/01_subject-only.yaml` - 被写体のみ（最小構成）
+* `templates/customize/02_multi-subject.yaml` - 複数被写体
+* `templates/customize/03_with-control.yaml` - 制御画像（構造制御）
+* `templates/customize/04_with-style.yaml` - スタイル画像（スタイル転送）
+* `templates/customize/05_full-featured.yaml` - 全機能統合（被写体+制御+スタイル）
+
+詳細な説明とYAML形式のリファレンスは [templates/customize/README.md](./templates/customize/README.md) を参照してください。
+
+#### メリット
+
+* ✅ **再利用性**: 同じ設定を何度も使用可能
+* ✅ **可読性**: 複雑なパラメータをわかりやすく整理
+* ✅ **バージョン管理**: YAML設定をGitで管理
+* ✅ **テンプレート化**: プロジェクトごとにテンプレートを用意
+* ✅ **コメント**: パラメータの説明をコメントとして記述可能
+
+#### YAML設定の詳細
+
+YAML形式で指定できるすべてのパラメータと検証ルールについては、以下を参照してください：
+
+📖 **[YAMLテンプレート使用ガイド](./templates/customize/README.md)**
+
+* YAML構造の詳細説明
+* reference_id のルール
+* パス指定方法
+* トラブルシューティング
+
+---
+
+### 4-2. `customize_image_from_yaml_inline` - インラインYAMLから画像カスタマイズ ⭐ **NEW!**
+
+YAMLファイルの代わりに、YAML内容を文字列として直接チャットに貼り付けて画像をカスタマイズできます。`customize_image_from_yaml` と同じ機能ですが、ファイルパス指定が不要で、より手軽に使用できます。
+
+#### 基本パラメータ
+* `yaml_content`（必須）: YAML設定内容（文字列）
+
+#### YAML内容の構造
+
+YAML内容は `customize_image_from_yaml` と同じ構造です。以下のすべてのパラメータを記述できます：
+
+```yaml
+# 基本設定（必須）
+model: "imagen-3.0-capability-001"
+output_path: "./output/my_image.png"
+prompt: "A portrait of [1] in the style of [2]"
+
+# 参照画像設定
+subjects:
+  - reference_id: 1
+    images:
+      - "./images/person1.jpg"
+      - "./images/person2.jpg"
+    config:
+      type: "person"
+      description: "a young woman with long hair"  # 必須
+
+style:
+  reference_id: 2
+  image_path: "./images/art_style.jpg"
+  description: "impressionist painting style"  # 省略可能
+
+# その他のパラメータ
+aspect_ratio: "3:4"
+sample_count: 2
+safety_level: "BLOCK_MEDIUM_AND_ABOVE"
+```
+
+#### 使用例
+
+```text
+以下のYAML設定で画像を生成してください：
+
+model: "imagen-3.0-capability-001"
+output_path: "portrait_style.png"
+prompt: "A portrait of [1] in the style of [2]"
+
+subjects:
+  - reference_id: 1
+    images:
+      - "woman_photo.jpg"
+    config:
+      type: "person"
+      description: "a young woman with long hair"
+
+style:
+  reference_id: 2
+  image_path: "art_style.jpg"
+  description: "impressionist painting style"
+
+aspect_ratio: "3:4"
+```
+
+#### ファイルパスとインラインYAMLの使い分け
+
+| 方法 | 用途 | メリット |
+|------|------|---------|
+| **customize_image_from_yaml** | ファイルパス指定 | ✅ テンプレート管理が容易<br>✅ バージョン管理可能<br>✅ 複雑な設定に最適 |
+| **customize_image_from_yaml_inline** | インラインYAML | ✅ ファイル不要で手軽<br>✅ チャットで直接編集可能<br>✅ 一時的な設定に最適 |
+
+#### メリット
+
+* ✅ **ファイル不要**: YAMLファイルを作成せずに直接実行
+* ✅ **チャット内で編集**: 設定をその場で調整可能
+* ✅ **共有が簡単**: YAML内容をコピー&ペーストで共有
+* ✅ **テスト実行**: 設定を試す際に便利
+
+#### 注意事項
+
+* YAML構文エラーがある場合、適切なエラーメッセージが表示されます
+* ファイルパスは `customize_image_from_yaml` と同じルールで解決されます
+* 同じYAML設定を繰り返し使用する場合は、`customize_image_from_yaml` でファイル保存することを推奨
+
+---
+
+### 5. `upscale_image`
 
 画像を 2 倍 / 4 倍にアップスケールします。
 

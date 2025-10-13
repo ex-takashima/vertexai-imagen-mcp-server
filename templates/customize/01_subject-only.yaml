@@ -1,0 +1,48 @@
+# ============================================================
+# Subject-Only Configuration (最小構成)
+# ============================================================
+# 被写体（SUBJECT）のみを使用したシンプルな構成例
+# 同じ被写体の画像を複数指定して一貫性を向上できます
+
+# ========================================
+# 基本設定（必須）
+# ========================================
+model: "imagen-3.0-capability-001"
+output_path: "./output/subject_only_output.png"
+prompt: "A portrait of [1] in a coffee shop, warm lighting, professional photography"
+
+# ========================================
+# 画像サイズ・品質（オプション）
+# ========================================
+aspect_ratio: "1:1"          # 1:1, 3:4, 4:3, 9:16, 16:9
+sample_image_size: "1K"      # 1K, 2K
+sample_count: 1              # 1-4
+
+# ========================================
+# 安全性設定（オプション）
+# ========================================
+safety_level: "BLOCK_MEDIUM_AND_ABOVE"
+person_generation: "ALLOW_ADULT"
+language: "auto"
+
+# ========================================
+# 参照画像設定：被写体（SUBJECT）
+# ========================================
+subjects:
+  - reference_id: 1
+    # 同じ被写体の異なる角度・表情の画像を指定
+    # 複数画像を指定することで一貫性が向上します
+    images:
+      - "./images/person_face1.jpg"
+      - "./images/person_face2.jpg"
+    config:
+      type: "person"           # person, animal, product, default
+      description: "a young woman with long brown hair"  # 必須
+
+# ========================================
+# その他のパラメータ（オプション）
+# ========================================
+negative_prompt: "blurry, low quality, distorted"
+region: "us-central1"
+return_base64: false
+include_thumbnail: false

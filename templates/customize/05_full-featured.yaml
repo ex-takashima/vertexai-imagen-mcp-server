@@ -1,0 +1,99 @@
+# ============================================================
+# Full-Featured Configuration (全機能)
+# ============================================================
+# 被写体、制御画像、スタイル画像のすべてを組み合わせた例
+# 最も高度なカスタマイズが可能
+
+# ========================================
+# 基本設定（必須）
+# ========================================
+model: "imagen-3.0-capability-001"
+output_path: "./output/full_featured_output.png"
+prompt: |
+  A portrait of [1] in the pose from [2],
+  rendered in the artistic style of [3],
+  professional studio lighting, high quality photography
+
+# ========================================
+# 画像サイズ・品質
+# ========================================
+aspect_ratio: "3:4"
+sample_image_size: "2K"
+sample_count: 4              # 複数バリエーション生成
+
+# ========================================
+# 安全性設定
+# ========================================
+safety_level: "BLOCK_MEDIUM_AND_ABOVE"
+person_generation: "ALLOW_ADULT"
+language: "auto"
+
+# ========================================
+# 参照画像設定：被写体（SUBJECT）
+# ========================================
+subjects:
+  - reference_id: 1
+    images:
+      - "./images/person_face1.jpg"
+      - "./images/person_face2.jpg"
+      - "./images/person_face3.jpg"
+    config:
+      type: "person"
+      description: "a young professional with friendly expression"  # 必須
+
+# ========================================
+# 参照画像設定：制御画像（CONTROL）
+# ========================================
+control:
+  reference_id: 2
+  image_path: "./images/reference_pose.jpg"
+  type: "face_mesh"
+  enable_computation: false    # 既に face mesh 形式の画像を使用
+
+# ========================================
+# 参照画像設定：スタイル画像（STYLE）
+# ========================================
+style:
+  reference_id: 3
+  image_path: "./images/art_style_reference.jpg"
+  description: "renaissance oil painting with dramatic chiaroscuro lighting and rich colors"  # 省略可能
+
+# ========================================
+# 参照IDの使用方法
+# ========================================
+# プロンプト内で [数字] を使用して参照画像を指定:
+#   [1] - SUBJECT (reference_id: 1)
+#   [2] - CONTROL (reference_id: 2)
+#   [3] - STYLE (reference_id: 3)
+#
+# 重要な制約:
+#   - 異なるタイプ（SUBJECT/CONTROL/STYLE）間では reference_id は重複不可
+#   - 同じ SUBJECT 内では同じ reference_id を使用可能（複数画像のグループ化）
+
+# ========================================
+# その他のパラメータ
+# ========================================
+negative_prompt: |
+  blurry, low quality, distorted,
+  cartoon, anime, illustration,
+  oversaturated, unrealistic
+region: "us-central1"
+return_base64: false
+include_thumbnail: true
+
+# ========================================
+# メタデータ（オプション、現在は使用されません）
+# ========================================
+metadata:
+  title: "Full-Featured Portrait Example"
+  tags:
+    - portrait
+    - professional
+    - artistic
+    - renaissance-style
+  notes: |
+    This configuration demonstrates all available features:
+    - Multiple subject reference images
+    - Face mesh control for pose
+    - Art style transfer
+    - Multiple sample generation

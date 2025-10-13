@@ -1,0 +1,59 @@
+# ============================================================
+# Style Image Configuration (スタイル画像)
+# ============================================================
+# スタイル画像（STYLE）を使用してアートスタイルを転写
+# 色調、描画スタイル、雰囲気を参照画像から適用
+
+# ========================================
+# 基本設定（必須）
+# ========================================
+model: "imagen-3.0-capability-001"
+output_path: "./output/with_style_output.png"
+prompt: "A serene mountain landscape at sunset, in the artistic style of [1]"
+
+# ========================================
+# 画像サイズ・品質
+# ========================================
+aspect_ratio: "16:9"
+sample_image_size: "2K"
+sample_count: 1
+
+# ========================================
+# 安全性設定
+# ========================================
+safety_level: "BLOCK_MEDIUM_AND_ABOVE"
+person_generation: "DONT_ALLOW"
+language: "auto"
+
+# ========================================
+# 参照画像設定：スタイル画像（STYLE）
+# ========================================
+style:
+  reference_id: 1
+  image_path: "./images/watercolor_painting.jpg"
+  description: "impressionist watercolor painting with soft brushstrokes and pastel colors"  # 省略可能
+  # 注意: style の description は省略可能ですが、記述することでより正確なスタイル転写が可能
+
+# ========================================
+# スタイル description の記述例
+# ========================================
+# 絵画スタイル:
+#   "oil painting with bold brushstrokes and vibrant colors"
+#   "minimalist line art with black ink on white background"
+#   "impressionist watercolor with soft pastel tones"
+#
+# 写真スタイル:
+#   "vintage film photography with warm tones and grain"
+#   "high contrast black and white photography"
+#   "cinematic color grading with teal and orange tones"
+#
+# デジタルアート:
+#   "digital art with neon colors and cyberpunk aesthetic"
+#   "flat design illustration with bold colors"
+#   "3D rendered with realistic lighting and materials"
+
+# ========================================
+# その他のパラメータ
+# ========================================
+negative_prompt: "photorealistic, 3D render"
+region: "us-central1"
