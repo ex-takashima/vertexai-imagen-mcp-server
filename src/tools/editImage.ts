@@ -6,7 +6,7 @@ import {
   getDisplayPath,
   generateMultipleFilePaths,
 } from '../utils/path.js';
-import { getProjectId, getImagenApiUrl } from '../utils/auth.js';
+import { getProjectId, getImagenApiUrl, getAuthHeaders } from '../utils/auth.js';
 import {
   resolveImageSource,
   createImageResponse,
@@ -296,20 +296,14 @@ export async function editImage(
   }
 
   try {
-    const authClient = await auth.getClient();
-    const accessToken = await authClient.getAccessToken();
-
-    if (!accessToken.token) {
-      throw new Error('Failed to obtain access token');
-    }
-
     const projectId = await getProjectId(auth);
     const apiUrl = getImagenApiUrl(projectId, model, region);
+    const authHeaders = await getAuthHeaders(auth);
 
     const response = await axios.post<GoogleImagenResponse>(apiUrl, requestBody, {
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken.token}`,
+        ...authHeaders,
       },
       timeout: 45000,
     });

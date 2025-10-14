@@ -41,16 +41,76 @@ Vertex AI の Imagen API を使用して画像を生成・編集できる MCP（
 
 ## 🚀 セットアップ手順
 
-### 1. Google Cloud サービスアカウントの作成
+### 1. 認証方式の選択
+
+このMCPサーバーは、2つの認証方式に対応しています：
+
+#### A. API KEY認証（テスト・開発用）⭐ **推奨：初心者向け**
+
+**メリット:**
+- ✅ 設定が簡単（キーファイル不要）
+- ✅ Vertex AI Studioから数秒で取得可能
+- ✅ テスト・プロトタイピングに最適
+
+**デメリット:**
+- ⚠️ 本番環境には非推奨（セキュリティ上の理由）
+- ⚠️ プロジェクトIDの手動設定が必要
+
+#### B. サービスアカウント認証（本番環境用）
+
+**メリット:**
+- ✅ 本番環境推奨
+- ✅ より強固なセキュリティ
+- ✅ プロジェクトID自動検出
+
+**デメリット:**
+- ⚠️ 設定がやや複雑（キーファイルのダウンロードと配置が必要）
+- ⚠️ IAM権限の設定が必要
+
+---
+
+### 1-A. API KEY認証のセットアップ（推奨：初心者向け）
 
 #### 手順概要
 
-1. [Google Cloud Console](https://console.cloud.google.com/) へアクセス  
-2. プロジェクトを作成または選択  
-3. 「APIとサービス」→「ライブラリ」で `Vertex AI API` を有効化  
-4. 「IAMと管理」→「サービスアカウント」→「サービスアカウントを作成」  
-5. 名前（例：`imagen-mcp-server`）を入力  
-6. ロールは「**Vertex AI ユーザー**」を選択し作成  
+1. [Vertex AI Studio](https://console.cloud.google.com/vertex-ai/generative/language) へアクセス
+2. プロジェクトを作成または選択
+3. 「Get API Key」をクリック
+4. 表示されたAPI KEYをコピー
+5. [Google Cloud Console](https://console.cloud.google.com/)でプロジェクトIDを確認（画面上部、プロジェクト名の横に表示）
+
+> 💡 **ヒント**: API KEYは `AIzaSy...` で始まる文字列です。
+
+#### 設定例（Claude Desktop）
+
+```json
+{
+  "mcpServers": {
+    "google-imagen": {
+      "command": "vertexai-imagen-mcp-server",
+      "env": {
+        "GOOGLE_API_KEY": "AIzaSy...",
+        "GOOGLE_PROJECT_ID": "your-project-id"
+      }
+    }
+  }
+}
+```
+
+> 🔐 **注意**: API KEYは機密情報です。第三者に公開しないでください。
+
+---
+
+### 1-B. サービスアカウント認証のセットアップ（本番環境用）
+
+#### 手順概要
+
+1. [Google Cloud Console](https://console.cloud.google.com/) へアクセス
+2. プロジェクトを作成または選択
+3. 「APIとサービス」→「ライブラリ」で `Vertex AI API` を有効化
+4. 「IAMと管理」→「サービスアカウント」→「サービスアカウントを作成」
+5. 名前（例：`imagen-mcp-server`）を入力
+6. ロールは「**Vertex AI ユーザー**」を選択し作成
 7. 作成後、「キー」タブから「新しいキーを作成」→「JSON」形式を選びダウンロード
 
 > 🔐 **注意**：ダウンロードしたキーは厳重に保管してください。バージョン管理対象外にすることを推奨します。

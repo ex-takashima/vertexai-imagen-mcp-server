@@ -7,7 +7,7 @@ import {
   getDisplayPath,
   resolveInputPath,
 } from '../utils/path.js';
-import { getProjectId, getUpscaleApiUrl } from '../utils/auth.js';
+import { getProjectId, getUpscaleApiUrl, getAuthHeaders } from '../utils/auth.js';
 import {
   createImageResponse,
   createUriImageResponse,
@@ -95,20 +95,14 @@ export async function upscaleImage(
       },
     };
 
-    const authClient = await auth.getClient();
-    const accessToken = await authClient.getAccessToken();
-
-    if (!accessToken.token) {
-      throw new Error('Failed to obtain access token');
-    }
-
     const projectId = await getProjectId(auth);
     const apiUrl = getUpscaleApiUrl(projectId, region);
+    const authHeaders = await getAuthHeaders(auth);
 
     const response = await axios.post<GoogleImagenResponse>(apiUrl, requestBody, {
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken.token}`,
+        ...authHeaders,
       },
       timeout: 60000,
     });

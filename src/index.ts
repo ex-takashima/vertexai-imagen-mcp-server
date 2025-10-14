@@ -125,11 +125,13 @@ class GoogleImagenMCPServer {
     );
 
     // Google Cloud認証の設定
-    this.auth = new GoogleAuth({
-      scopes: ['https://www.googleapis.com/auth/cloud-platform'],
-      credentials: process.env.GOOGLE_SERVICE_ACCOUNT_KEY ?
-        JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY) : undefined,
-    });
+    // API KEY認証の場合、GoogleAuthはプロジェクトID取得のみに使用
+    this.auth = process.env.GOOGLE_SERVICE_ACCOUNT_KEY
+      ? new GoogleAuth({
+          scopes: ['https://www.googleapis.com/auth/cloud-platform'],
+          credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY),
+        })
+      : new GoogleAuth(); // API KEY認証時はスコープ不要
 
     // リソースマネージャーの初期化
     const outputDir = getDefaultOutputDirectory();
@@ -181,8 +183,15 @@ Options:
   -h, --help       Show help
 
 Environment Variables:
-  GOOGLE_SERVICE_ACCOUNT_KEY      Service account JSON key (required)
-  GOOGLE_PROJECT_ID               Google Cloud Project ID (optional, auto-detected from service account)
+  Authentication (choose one):
+    GOOGLE_API_KEY                API Key from Vertex AI Studio (for testing and development)
+                                  When using API KEY: GOOGLE_PROJECT_ID is also required
+    GOOGLE_SERVICE_ACCOUNT_KEY    Service account JSON key (for production)
+                                  When using service account: GOOGLE_PROJECT_ID is optional (auto-detected)
+
+  GOOGLE_PROJECT_ID               Google Cloud Project ID
+                                  Required for API KEY authentication
+                                  Optional for service account (auto-detected from key)
   GOOGLE_REGION                   Region (optional, default: us-central1)
   GOOGLE_IMAGEN_MODEL             Model name (optional, default: imagen-3.0-generate-002)
   VERTEXAI_IMAGEN_OUTPUT_DIR      Default output directory for generated images
