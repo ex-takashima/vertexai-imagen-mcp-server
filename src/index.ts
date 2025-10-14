@@ -126,12 +126,15 @@ class GoogleImagenMCPServer {
 
     // Google Cloud認証の設定
     // API KEY認証の場合、GoogleAuthはプロジェクトID取得のみに使用
+    // GOOGLE_APPLICATION_CREDENTIALS使用時もスコープが必要
     this.auth = process.env.GOOGLE_SERVICE_ACCOUNT_KEY
       ? new GoogleAuth({
           scopes: ['https://www.googleapis.com/auth/cloud-platform'],
           credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY),
         })
-      : new GoogleAuth(); // API KEY認証時はスコープ不要
+      : new GoogleAuth({
+          scopes: ['https://www.googleapis.com/auth/cloud-platform'],
+        });
 
     // リソースマネージャーの初期化
     const outputDir = getDefaultOutputDirectory();
