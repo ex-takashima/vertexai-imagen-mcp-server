@@ -1,5 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
+import { getDefaultOutputDirectory, validatePathWithinBase } from '../utils/path.js';
 import type { ListGeneratedImagesArgs } from '../types/tools.js';
 import type { ToolContext } from './types.js';
 
@@ -7,10 +8,25 @@ export async function listGeneratedImages(
   _context: ToolContext,
   args: ListGeneratedImagesArgs,
 ) {
-  const { directory = '.' } = args;
+  const defaultDir = getDefaultOutputDirectory();
+
+  // Resolve target directory (default to base directory)
+  let targetDir: string;
+  if (args.directory) {
+    // If directory is specified, resolve it relative to default directory
+    targetDir = path.isAbsolute(args.directory)
+      ? args.directory
+      : path.join(defaultDir, args.directory);
+  } else {
+    // Default to base directory
+    targetDir = defaultDir;
+  }
+
+  // Security: Validate path is within base directory (prevent path traversal)
+  validatePathWithinBase(targetDir, defaultDir);
 
   try {
-    const files = await fs.readdir(directory);
+    const files = await fs.readdir(targetDir);
     const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp'];
 
     const imageFiles = files.filter((file) =>
@@ -22,7 +38,7 @@ export async function listGeneratedImages(
         content: [
           {
             type: 'text',
-            text: `No image files found in directory: ${path.resolve(directory)}`,
+            text: `No image files found in directory: ${targetDir}`,
           },
         ],
       };
@@ -30,7 +46,7 @@ export async function listGeneratedImages(
 
     const fileDetails = await Promise.all(
       imageFiles.map(async (file) => {
-        const filePath = path.join(directory, file);
+        const filePath = path.join(targetDir, file);
         const stats = await fs.stat(filePath);
         return {
           name: file,
@@ -51,7 +67,7 @@ export async function listGeneratedImages(
       content: [
         {
           type: 'text',
-          text: `Found ${imageFiles.length} image file(s) in ${path.resolve(directory)}:\n\n${fileList}`,
+          text: `Found ${imageFiles.length} image file(s) in ${targetDir}:\n\n${fileList}`,
         },
       ],
     };

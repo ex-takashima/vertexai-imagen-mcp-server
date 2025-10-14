@@ -3,11 +3,13 @@
  */
 
 import fs from 'fs/promises';
+import path from 'path';
 import yaml from 'js-yaml';
 import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 import type { CustomizeImageYamlConfig } from '../types/yamlConfig.js';
 import type { CustomizeImageArgs } from '../types/tools.js';
-import { normalizeAndValidatePath } from './path.js';
+import { normalizeAndValidatePath, validatePathWithinBase } from './path.js';
+import { getTemplateDirectory } from './templateManager.js';
 
 /**
  * YAML文字列をパースする
@@ -39,11 +41,24 @@ export function parseYamlString(yamlContent: string): CustomizeImageYamlConfig {
 
 /**
  * YAMLファイルを読み込んでパースする
+ * デフォルトの読込フォルダはJSONテンプレートフォルダ
+ * パストラバーサル攻撃を防ぐため、設定されているフォルダ階層より上へはアクセスできない
  */
 export async function loadYamlConfig(yamlPath: string): Promise<CustomizeImageYamlConfig> {
   try {
+    // YAMLファイルのベースディレクトリをテンプレートフォルダとする
+    const yamlBaseDir = getTemplateDirectory();
+
+    // パス解決: 絶対パスまたは相対パス
+    const absoluteYamlPath = path.isAbsolute(yamlPath)
+      ? yamlPath
+      : path.join(yamlBaseDir, yamlPath);
+
+    // Security: Validate path is within base directory (prevent path traversal)
+    validatePathWithinBase(absoluteYamlPath, yamlBaseDir);
+
     // YAMLファイル読み込み
-    const yamlContent = await fs.readFile(yamlPath, 'utf8');
+    const yamlContent = await fs.readFile(absoluteYamlPath, 'utf8');
 
     // YAMLパース（共通関数を使用）
     return parseYamlString(yamlContent);
@@ -51,7 +66,8 @@ export async function loadYamlConfig(yamlPath: string): Promise<CustomizeImageYa
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
       throw new McpError(
         ErrorCode.InvalidParams,
-        `YAML file not found: ${yamlPath}`
+        `YAML file not found: ${yamlPath}\n` +
+        `Default YAML directory: ${getTemplateDirectory()}`
       );
     }
 
