@@ -55,6 +55,38 @@ Vertex AI の Imagen API を使用して画像を生成・編集できる MCP（
 **デメリット:**
 - ⚠️ 本番環境には非推奨（セキュリティ上の理由）
 - ⚠️ プロジェクトIDの手動設定が必要
+- ⚠️ **QUOTA制限が存在する**（詳細は下記参照）
+
+#### ⚠️ API KEY使用時のQUOTA制限について
+
+API KEYを使用する場合、Vertex AIには**リクエスト数の上限（Quota）**が設定されています。
+
+**Quota制限エラーの例:**
+```
+Quota exceeded for aiplatform.googleapis.com/online_prediction_requests_per_base_model
+with base model: imagen-3.0-generate. Please submit a quota increase request.
+https://cloud.google.com/vertex-ai/docs/generative-ai/quotas-genai.
+```
+
+**対処方法:**
+
+1. **Quota増加リクエスト**
+   - [Vertex AI Quotas ページ](https://cloud.google.com/vertex-ai/docs/generative-ai/quotas-genai)にアクセス
+   - Google Cloud ConsoleでQuota増加を申請
+   - プロジェクトの用途を説明して承認を待つ
+
+2. **使用量の管理**
+   - 画像生成の頻度を調整
+   - 不要なリトライを避ける
+   - `sample_count` パラメータを最小限に設定
+
+3. **サービスアカウント認証への移行を検討**
+   - 本番環境ではサービスアカウント認証の使用を推奨
+   - より高いQuotaとセキュリティが提供される
+
+> 💡 **ヒント**: 開発・テスト時はAPI KEYで手軽に始め、本番運用時はサービスアカウント認証に切り替えることを推奨します。
+
+---
 
 #### B. サービスアカウント認証（本番環境用）
 

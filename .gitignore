@@ -192,3 +192,4 @@ test-images/
 examples/generated/
 /.obsidian
 docs/THUMBNAIL_IMPLEMENTATION_PROPOSAL.md
+/.private
