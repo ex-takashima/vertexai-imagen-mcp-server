@@ -202,6 +202,10 @@ Environment Variables:
   VERTEXAI_IMAGEN_THUMBNAIL       Enable thumbnail generation for image previews
                                   (optional, default: false, set to 'true' to enable)
                                   Note: Thumbnails consume ~30-50 tokens per image
+  VERTEXAI_IMAGEN_THUMBNAIL_SIZE  Thumbnail size in pixels (optional, default: 128, max: 512)
+                                  Smaller values reduce token consumption
+  VERTEXAI_IMAGEN_THUMBNAIL_QUALITY  Thumbnail JPEG quality (optional, default: 60, range: 1-100)
+                                     Lower values reduce token consumption
   DEBUG                           Enable debug logging
 
 File Path Handling:

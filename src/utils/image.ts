@@ -221,21 +221,19 @@ export async function createUriImageResponse(
   responseText += `\nSaved to: ${filePath}`;
   responseText += `\nFile size: ${fileSize} bytes`;
   responseText += `\nMIME type: ${mimeType}`;
-  responseText += `\n\n📎 Image URI: ${uri}`;
-  responseText += `\nℹ️  The image can be accessed via MCP Resources API.`;
+
+  // Markdownリンク形式でURIを追加
+  const fileName = path.basename(absoluteFilePath);
+  responseText += `\n\n📎 **Full-size image:** [${fileName}](${uri})`;
+  responseText += `\n💡 *You can access the full-resolution image via MCP Resources API*`;
+
+  // プレーンテキストでもURIを表示（コピー用）
+  responseText += `\n\n🔗 Resource URI:\n\`\`\`\n${uri}\n\`\`\``;
 
   const content: any[] = [
     {
       type: "text",
       text: responseText
-    },
-    {
-      type: "resource",
-      resource: {
-        uri: uri,
-        mimeType: mimeType,
-        text: `Image resource: ${path.basename(uri)}`
-      }
     }
   ];
 
@@ -249,21 +247,21 @@ export async function createUriImageResponse(
         console.error(`[DEBUG] Thumbnail generation enabled, processing: ${absoluteFilePath}`);
       }
 
-      const { generateThumbnailFromFile } = await import('./thumbnail.js');
-      const thumbnailDataUri = await generateThumbnailFromFile(absoluteFilePath);
+      const { generateThumbnailDataFromFile } = await import('./thumbnail.js');
+      const thumbnailData = await generateThumbnailDataFromFile(absoluteFilePath);
 
       content.push({
         type: "image",
-        data: thumbnailDataUri,
-        mimeType: "image/jpeg",
+        data: thumbnailData.base64,
+        mimeType: thumbnailData.mimeType,
         annotations: {
-          audience: ["user"] as const,  // LLMコンテキストから除外
-          priority: 0.5  // 優先度低（サムネイルのため）
+          audience: ["user", "assistant"],  // LLMとユーザー両方に表示
+          priority: 0.8
         }
       });
 
       if (process.env.DEBUG) {
-        const thumbnailSize = Math.round(thumbnailDataUri.length * 0.75); // Base64デコード後のサイズ概算
+        const thumbnailSize = Math.round(thumbnailData.base64.length * 0.75); // Base64デコード後のサイズ概算
         console.error(`[DEBUG] Thumbnail generated successfully: ~${thumbnailSize} bytes`);
       }
     } catch (error) {
@@ -305,10 +303,13 @@ export async function createMultiUriImageResponse(
 
   for (let i = 0; i < imageInfos.length; i++) {
     const info = imageInfos[i];
+    const fileName = path.basename(info.absoluteFilePath);
     responseText += `\n  ${i + 1}. ${info.filePath} (${info.fileSize} bytes)`;
+    // Markdownリンクを追加
+    responseText += `\n     📎 [${fileName}](${info.uri})`;
   }
 
-  responseText += `\n\nℹ️  All images can be accessed via MCP Resources API.`;
+  responseText += `\n\n💡 *Full-size images available via MCP Resources API*`;
 
   const content: any[] = [
     {
@@ -321,15 +322,6 @@ export async function createMultiUriImageResponse(
   const thumbnailEnabled = includeThumbnail;
 
   for (const info of imageInfos) {
-    // リソース参照を追加
-    content.push({
-      type: "resource",
-      resource: {
-        uri: info.uri,
-        mimeType: info.mimeType,
-        text: `Image resource: ${path.basename(info.uri)}`
-      }
-    });
 
     // サムネイルを生成
     if (thumbnailEnabled) {
@@ -338,21 +330,21 @@ export async function createMultiUriImageResponse(
           console.error(`[DEBUG] Generating thumbnail for: ${info.absoluteFilePath}`);
         }
 
-        const { generateThumbnailFromFile } = await import('./thumbnail.js');
-        const thumbnailDataUri = await generateThumbnailFromFile(info.absoluteFilePath);
+        const { generateThumbnailDataFromFile } = await import('./thumbnail.js');
+        const thumbnailData = await generateThumbnailDataFromFile(info.absoluteFilePath);
 
         content.push({
           type: "image",
-          data: thumbnailDataUri,
-          mimeType: "image/jpeg",
+          data: thumbnailData.base64,
+          mimeType: thumbnailData.mimeType,
           annotations: {
-            audience: ["user"] as const,  // LLMコンテキストから除外
-            priority: 0.5  // 優先度低（サムネイルのため）
+            audience: ["user", "assistant"],  // LLMとユーザー両方に表示
+            priority: 0.8
           }
         });
 
         if (process.env.DEBUG) {
-          const thumbnailSize = Math.round(thumbnailDataUri.length * 0.75);
+          const thumbnailSize = Math.round(thumbnailData.base64.length * 0.75);
           console.error(`[DEBUG] Thumbnail generated: ~${thumbnailSize} bytes`);
         }
       } catch (error) {
