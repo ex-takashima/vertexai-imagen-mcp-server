@@ -77,10 +77,11 @@ export type Job = GenerateJob | EditJob | CustomizeJob | UpscaleJob | GenerateAn
 
 /**
  * ジョブ作成時の入力パラメータ
+ * Note: params is loosely typed here as it depends on tool_type at runtime
  */
 export interface StartJobArgs {
   tool_type: JobType;
-  params: GenerateImageArgs | EditImageArgs | CustomizeImageArgs | UpscaleImageArgs | GenerateAndUpscaleImageArgs;
+  params: Record<string, any>;
 }
 
 /**

@@ -18,6 +18,7 @@ import {
   embedMetadata,
   isMetadataEmbeddingEnabled,
 } from '../utils/metadata.js';
+import { vertexAIRateLimiter } from '../utils/rateLimiter.js';
 import type { GoogleUpscaleRequest, GoogleImagenResponse } from '../types/api.js';
 import type { UpscaleImageArgs } from '../types/tools.js';
 import type { ToolContext } from './types.js';
@@ -99,13 +100,15 @@ export async function upscaleImage(
     const apiUrl = getUpscaleApiUrl(projectId, region);
     const authHeaders = await getAuthHeaders(auth);
 
-    const response = await axios.post<GoogleImagenResponse>(apiUrl, requestBody, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...authHeaders,
-      },
-      timeout: 60000,
-    });
+    const response = await vertexAIRateLimiter.execute(() =>
+      axios.post<GoogleImagenResponse>(apiUrl, requestBody, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+        },
+        timeout: 60000,
+      })
+    );
 
     if (!response.data.predictions || response.data.predictions.length === 0) {
       throw new Error('Upscaling failed - no output received');

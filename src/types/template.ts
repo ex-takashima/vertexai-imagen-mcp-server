@@ -57,7 +57,7 @@ export interface GetTemplateDetailArgs {
  */
 export interface GenerateFromTemplateArgs {
   template_name: string;
-  variable_values: Record<string, string>;  // 変数名と値のマッピング
+  variable_values: Record<string, any>;  // 変数名と値のマッピング（文字列化される）
   override_params?: Record<string, any>;  // default_paramsを上書き
 }
 

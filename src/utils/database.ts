@@ -7,9 +7,24 @@ import { mkdir } from 'fs/promises';
 import { dirname } from 'path';
 import type { Job, JobStatus, JobType } from '../types/job.js';
 import type { ImageRecord, ListHistoryFilters } from '../types/history.js';
+import { sanitizeFTS5Query } from './error.js';
 
 export class JobDatabase {
   private db: Database.Database;
+
+  // プリペアドステートメントのキャッシュ（パフォーマンス最適化）
+  private statements: {
+    createJob?: Database.Statement;
+    getJob?: Database.Statement;
+    updateJobStatus?: Database.Statement;
+    updateJobResult?: Database.Statement;
+    updateJobError?: Database.Statement;
+    createImageHistory?: Database.Statement;
+    getImageHistory?: Database.Statement;
+    deleteImageHistory?: Database.Statement;
+    updateImageFilePath?: Database.Statement;
+    findImagesByParamsHash?: Database.Statement;
+  } = {};
 
   constructor(dbPath: string) {
     // データベースディレクトリの作成
@@ -20,6 +35,66 @@ export class JobDatabase {
 
     this.db = new Database(dbPath);
     this.initialize();
+    this.prepareStatements();
+  }
+
+  /**
+   * プリペアドステートメントを事前準備（パフォーマンス最適化）
+   */
+  private prepareStatements(): void {
+    this.statements.createJob = this.db.prepare(`
+      INSERT INTO jobs (id, type, status, params, created_at)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+
+    this.statements.getJob = this.db.prepare(`
+      SELECT * FROM jobs WHERE id = ?
+    `);
+
+    this.statements.updateJobStatus = this.db.prepare(`
+      UPDATE jobs
+      SET status = ?, started_at = ?, completed_at = ?
+      WHERE id = ?
+    `);
+
+    this.statements.updateJobResult = this.db.prepare(`
+      UPDATE jobs
+      SET result = ?, status = 'completed', completed_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `);
+
+    this.statements.updateJobError = this.db.prepare(`
+      UPDATE jobs
+      SET error = ?, status = 'failed', completed_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `);
+
+    this.statements.createImageHistory = this.db.prepare(`
+      INSERT INTO images (
+        uuid, file_path, tool_name, prompt, created_at,
+        model, aspect_ratio, sample_count, sample_image_size,
+        safety_level, person_generation, language,
+        parameters, params_hash,
+        success, error_message,
+        file_size, mime_type
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    this.statements.getImageHistory = this.db.prepare(`
+      SELECT * FROM images WHERE uuid = ?
+    `);
+
+    this.statements.deleteImageHistory = this.db.prepare(`
+      DELETE FROM images WHERE uuid = ?
+    `);
+
+    this.statements.updateImageFilePath = this.db.prepare(`
+      UPDATE images SET file_path = ? WHERE uuid = ?
+    `);
+
+    this.statements.findImagesByParamsHash = this.db.prepare(`
+      SELECT * FROM images WHERE params_hash = ? ORDER BY created_at DESC
+    `);
   }
 
   /**
@@ -74,6 +149,10 @@ export class JobDatabase {
       CREATE INDEX IF NOT EXISTS idx_images_model ON images(model);
       CREATE INDEX IF NOT EXISTS idx_images_params_hash ON images(params_hash);
 
+      -- 複合インデックス（フィルタ付き検索の高速化）
+      CREATE INDEX IF NOT EXISTS idx_images_tool_created ON images(tool_name, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_images_model_created ON images(model, created_at DESC);
+
       -- フルテキスト検索テーブル
       CREATE VIRTUAL TABLE IF NOT EXISTS images_fts USING fts5(
         uuid,
@@ -106,12 +185,7 @@ export class JobDatabase {
    * ジョブを作成
    */
   createJob(job: Job): void {
-    const stmt = this.db.prepare(`
-      INSERT INTO jobs (id, type, status, params, created_at)
-      VALUES (?, ?, ?, ?, ?)
-    `);
-
-    stmt.run(
+    this.statements.createJob!.run(
       job.id,
       job.type,
       job.status,
@@ -124,11 +198,7 @@ export class JobDatabase {
    * ジョブをIDで取得
    */
   getJob(jobId: string): Job | null {
-    const stmt = this.db.prepare(`
-      SELECT * FROM jobs WHERE id = ?
-    `);
-
-    const row = stmt.get(jobId) as any;
+    const row = this.statements.getJob!.get(jobId) as any;
     if (!row) return null;
 
     return this.rowToJob(row);
@@ -138,13 +208,7 @@ export class JobDatabase {
    * ジョブステータスを更新
    */
   updateJobStatus(jobId: string, status: JobStatus, startedAt?: Date, completedAt?: Date): void {
-    const stmt = this.db.prepare(`
-      UPDATE jobs
-      SET status = ?, started_at = ?, completed_at = ?
-      WHERE id = ?
-    `);
-
-    stmt.run(
+    this.statements.updateJobStatus!.run(
       status,
       startedAt?.toISOString() || null,
       completedAt?.toISOString() || null,
@@ -156,26 +220,14 @@ export class JobDatabase {
    * ジョブ結果を更新
    */
   updateJobResult(jobId: string, result: any): void {
-    const stmt = this.db.prepare(`
-      UPDATE jobs
-      SET result = ?, status = 'completed', completed_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `);
-
-    stmt.run(JSON.stringify(result), jobId);
+    this.statements.updateJobResult!.run(JSON.stringify(result), jobId);
   }
 
   /**
    * ジョブエラーを更新
    */
   updateJobError(jobId: string, error: string): void {
-    const stmt = this.db.prepare(`
-      UPDATE jobs
-      SET error = ?, status = 'failed', completed_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `);
-
-    stmt.run(error, jobId);
+    this.statements.updateJobError!.run(error, jobId);
   }
 
   /**
@@ -237,6 +289,15 @@ export class JobDatabase {
   }
 
   /**
+   * トランザクション内で関数を実行
+   * 成功時に自動コミット、エラー時にロールバック
+   */
+  transaction<T>(fn: () => T): T {
+    const txn = this.db.transaction(fn);
+    return txn();
+  }
+
+  /**
    * データベース接続を閉じる
    */
   close(): void {
@@ -251,18 +312,7 @@ export class JobDatabase {
    * 画像履歴を作成
    */
   createImageHistory(record: Omit<ImageRecord, 'createdAt'> & { createdAt?: Date }): void {
-    const stmt = this.db.prepare(`
-      INSERT INTO images (
-        uuid, file_path, tool_name, prompt, created_at,
-        model, aspect_ratio, sample_count, sample_image_size,
-        safety_level, person_generation, language,
-        parameters, params_hash,
-        success, error_message,
-        file_size, mime_type
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    stmt.run(
+    this.statements.createImageHistory!.run(
       record.uuid,
       record.filePath,
       record.toolName,
@@ -288,11 +338,7 @@ export class JobDatabase {
    * 画像履歴をUUIDで取得
    */
   getImageHistory(uuid: string): ImageRecord | null {
-    const stmt = this.db.prepare(`
-      SELECT * FROM images WHERE uuid = ?
-    `);
-
-    const row = stmt.get(uuid) as any;
+    const row = this.statements.getImageHistory!.get(uuid) as any;
     if (!row) return null;
 
     return this.rowToImageRecord(row);
@@ -351,12 +397,15 @@ export class JobDatabase {
     filters?: ListHistoryFilters,
     limit: number = 50
   ): ImageRecord[] {
+    // FTS5クエリをサニタイズ（構文エラー防止）
+    const sanitizedQuery = sanitizeFTS5Query(searchQuery);
+
     let query = `
       SELECT images.* FROM images
       INNER JOIN images_fts ON images.rowid = images_fts.rowid
       WHERE images_fts MATCH ?
     `;
-    const params: any[] = [searchQuery];
+    const params: any[] = [sanitizedQuery];
 
     if (filters) {
       if (filters.tool_name) {
@@ -394,11 +443,7 @@ export class JobDatabase {
    * 画像履歴を削除
    */
   deleteImageHistory(uuid: string): boolean {
-    const stmt = this.db.prepare(`
-      DELETE FROM images WHERE uuid = ?
-    `);
-
-    const result = stmt.run(uuid);
+    const result = this.statements.deleteImageHistory!.run(uuid);
     return result.changes > 0;
   }
 
@@ -406,11 +451,7 @@ export class JobDatabase {
    * パラメータハッシュで画像履歴を検索
    */
   findImagesByParamsHash(paramsHash: string): ImageRecord[] {
-    const stmt = this.db.prepare(`
-      SELECT * FROM images WHERE params_hash = ? ORDER BY created_at DESC
-    `);
-
-    const rows = stmt.all(paramsHash) as any[];
+    const rows = this.statements.findImagesByParamsHash!.all(paramsHash) as any[];
     return rows.map(row => this.rowToImageRecord(row));
   }
 
@@ -418,11 +459,7 @@ export class JobDatabase {
    * 画像履歴のファイルパスを更新
    */
   updateImageFilePath(uuid: string, newFilePath: string): boolean {
-    const stmt = this.db.prepare(`
-      UPDATE images SET file_path = ? WHERE uuid = ?
-    `);
-
-    const result = stmt.run(newFilePath, uuid);
+    const result = this.statements.updateImageFilePath!.run(newFilePath, uuid);
     return result.changes > 0;
   }
 

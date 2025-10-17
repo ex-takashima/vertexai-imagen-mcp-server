@@ -19,6 +19,7 @@ import {
   embedMetadata,
   isMetadataEmbeddingEnabled,
 } from '../utils/metadata.js';
+import { vertexAIRateLimiter } from '../utils/rateLimiter.js';
 import { GOOGLE_IMAGEN_EDIT_MODEL } from '../config/constants.js';
 import type { GoogleImagenRequest, GoogleImagenResponse, ReferenceImage } from '../types/api.js';
 import type { CustomizeImageArgs } from '../types/tools.js';
@@ -334,13 +335,15 @@ export async function customizeImage(
     const apiUrl = getImagenApiUrl(projectId, model, region);
     const authHeaders = await getAuthHeaders(auth);
 
-    const response = await axios.post<GoogleImagenResponse>(apiUrl, requestBody, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...authHeaders,
-      },
-      timeout: 45000,
-    });
+    const response = await vertexAIRateLimiter.execute(() =>
+      axios.post<GoogleImagenResponse>(apiUrl, requestBody, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+        },
+        timeout: 45000,
+      })
+    );
 
     if (!response.data.predictions || response.data.predictions.length === 0) {
       throw new Error('No images were generated');

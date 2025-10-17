@@ -49,6 +49,9 @@ import type {
 } from './types/template.js';
 import type { CustomizeImageFromYamlArgs, CustomizeImageFromYamlInlineArgs } from './types/yamlConfig.js';
 import type { ToolContext } from './tools/types.js';
+import { logErrorWithStack, getErrorMessage, validateWithZod } from './utils/error.js';
+import { validateEnvironment } from './utils/envValidation.js';
+import * as schemas from './validation/schemas.js';
 import { generateImage as handleGenerateImage } from './tools/generateImage.js';
 import { editImage as handleEditImage } from './tools/editImage.js';
 import { customizeImage as handleCustomizeImage } from './tools/customizeImage.js';
@@ -111,6 +114,9 @@ class GoogleImagenMCPServer {
   private toolContext: ToolContext;
 
   constructor() {
+    // Validate environment variables before any initialization
+    validateEnvironment();
+
     this.server = new Server(
       {
         name: "vertexai-imagen-server",
@@ -1050,53 +1056,53 @@ It should be run by an MCP client like Claude Desktop.
       try {
         switch (name) {
           case TOOL_GENERATE_IMAGE:
-            return await this.generateImage(args as unknown as GenerateImageArgs);
+            return await this.generateImage(validateWithZod(schemas.GenerateImageArgsSchema, args));
           case TOOL_EDIT_IMAGE:
-            return await this.editImage(args as unknown as EditImageArgs);
+            return await this.editImage(validateWithZod(schemas.EditImageArgsSchema, args));
           case TOOL_UPSCALE_IMAGE:
-            return await this.upscaleImage(args as unknown as UpscaleImageArgs);
+            return await this.upscaleImage(validateWithZod(schemas.UpscaleImageArgsSchema, args));
           case TOOL_GENERATE_AND_UPSCALE_IMAGE:
-            return await this.generateAndUpscaleImage(args as unknown as GenerateAndUpscaleImageArgs);
+            return await this.generateAndUpscaleImage(validateWithZod(schemas.GenerateAndUpscaleImageArgsSchema, args));
           case TOOL_CUSTOMIZE_IMAGE:
-            return await this.customizeImage(args as unknown as CustomizeImageArgs);
+            return await this.customizeImage(validateWithZod(schemas.CustomizeImageArgsSchema, args));
           case TOOL_CUSTOMIZE_IMAGE_FROM_YAML:
-            return await this.customizeImageFromYaml(args as unknown as CustomizeImageFromYamlArgs);
+            return await this.customizeImageFromYaml(validateWithZod(schemas.CustomizeImageFromYamlArgsSchema, args));
           case TOOL_CUSTOMIZE_IMAGE_FROM_YAML_INLINE:
-            return await this.customizeImageFromYamlInline(args as unknown as CustomizeImageFromYamlInlineArgs);
+            return await this.customizeImageFromYamlInline(validateWithZod(schemas.CustomizeImageFromYamlInlineArgsSchema, args));
           case TOOL_LIST_GENERATED_IMAGES:
-            return await this.listGeneratedImages(args as unknown as ListGeneratedImagesArgs);
+            return await this.listGeneratedImages(validateWithZod(schemas.ListGeneratedImagesArgsSchema, args));
           case TOOL_LIST_SEMANTIC_CLASSES:
-            return await this.listSemanticClasses(args as unknown as ListSemanticClassesArgs);
+            return await this.listSemanticClasses(validateWithZod(schemas.ListSemanticClassesArgsSchema, args));
           case TOOL_START_GENERATION_JOB:
-            return await this.startGenerationJob(args as unknown as StartJobArgs);
+            return await this.startGenerationJob(validateWithZod(schemas.StartJobArgsSchema, args));
           case TOOL_CHECK_JOB_STATUS:
-            return await this.checkJobStatus(args as unknown as CheckJobStatusArgs);
+            return await this.checkJobStatus(validateWithZod(schemas.CheckJobStatusArgsSchema, args));
           case TOOL_GET_JOB_RESULT:
-            return await this.getJobResult(args as unknown as GetJobResultArgs);
+            return await this.getJobResult(validateWithZod(schemas.GetJobResultArgsSchema, args));
           case TOOL_CANCEL_JOB:
-            return await this.cancelJob(args as unknown as CancelJobArgs);
+            return await this.cancelJob(validateWithZod(schemas.CancelJobArgsSchema, args));
           case TOOL_LIST_JOBS:
-            return await this.listJobs(args as unknown as ListJobsArgs);
+            return await this.listJobs(validateWithZod(schemas.ListJobsArgsSchema, args));
           case TOOL_LIST_HISTORY:
-            return await this.listHistory(args as unknown as ListHistoryArgs);
+            return await this.listHistory(validateWithZod(schemas.ListHistoryArgsSchema, args));
           case TOOL_GET_HISTORY_BY_UUID:
-            return await this.getHistoryByUuid(args as unknown as GetHistoryByUuidArgs);
+            return await this.getHistoryByUuid(validateWithZod(schemas.GetHistoryByUuidArgsSchema, args));
           case TOOL_SEARCH_HISTORY:
-            return await this.searchHistory(args as unknown as SearchHistoryArgs);
+            return await this.searchHistory(validateWithZod(schemas.SearchHistoryArgsSchema, args));
           case TOOL_GET_METADATA_FROM_IMAGE:
-            return await this.getMetadataFromImage(args as unknown as GetMetadataFromImageArgs);
+            return await this.getMetadataFromImage(validateWithZod(schemas.GetMetadataFromImageArgsSchema, args));
           case TOOL_SAVE_PROMPT_TEMPLATE:
-            return await this.savePromptTemplate(args as unknown as SavePromptTemplateArgs);
+            return await this.savePromptTemplate(validateWithZod(schemas.SavePromptTemplateArgsSchema, args));
           case TOOL_LIST_PROMPT_TEMPLATES:
-            return await this.listPromptTemplates(args as unknown as ListPromptTemplatesArgs);
+            return await this.listPromptTemplates(validateWithZod(schemas.ListPromptTemplatesArgsSchema, args));
           case TOOL_GET_TEMPLATE_DETAIL:
-            return await this.getTemplateDetail(args as unknown as GetTemplateDetailArgs);
+            return await this.getTemplateDetail(validateWithZod(schemas.GetTemplateDetailArgsSchema, args));
           case TOOL_GENERATE_FROM_TEMPLATE:
-            return await this.generateFromTemplate(args as unknown as GenerateFromTemplateArgs);
+            return await this.generateFromTemplate(validateWithZod(schemas.GenerateFromTemplateArgsSchema, args));
           case TOOL_DELETE_TEMPLATE:
-            return await this.deleteTemplate(args as unknown as DeleteTemplateArgs);
+            return await this.deleteTemplate(validateWithZod(schemas.DeleteTemplateArgsSchema, args));
           case TOOL_UPDATE_TEMPLATE:
-            return await this.updateTemplate(args as unknown as UpdateTemplateArgs);
+            return await this.updateTemplate(validateWithZod(schemas.UpdateTemplateArgsSchema, args));
           default:
             throw new McpError(
               ErrorCode.MethodNotFound,
@@ -1107,9 +1113,13 @@ It should be run by an MCP client like Claude Desktop.
         if (error instanceof McpError) {
           throw error;
         }
+
+        const errorMessage = getErrorMessage(error);
+        logErrorWithStack(`Tool execution failed: ${name}`, error);
+
         throw new McpError(
           ErrorCode.InternalError,
-          `Tool execution failed: ${error instanceof Error ? error.message : String(error)}`
+          `Tool execution failed: ${errorMessage}`
         );
       }
     });
@@ -1229,9 +1239,13 @@ It should be run by an MCP client like Claude Desktop.
         if (error instanceof McpError) {
           throw error;
         }
+
+        const errorMessage = getErrorMessage(error);
+        logErrorWithStack('Failed to list resources', error);
+
         throw new McpError(
           ErrorCode.InternalError,
-          `Failed to list resources: ${error instanceof Error ? error.message : String(error)}`
+          `Failed to list resources: ${errorMessage}`
         );
       }
     });
@@ -1266,9 +1280,13 @@ It should be run by an MCP client like Claude Desktop.
         if (error instanceof McpError) {
           throw error;
         }
+
+        const errorMessage = getErrorMessage(error);
+        logErrorWithStack('Failed to read resource', error);
+
         throw new McpError(
           ErrorCode.InternalError,
-          `Failed to read resource: ${error instanceof Error ? error.message : String(error)}`
+          `Failed to read resource: ${errorMessage}`
         );
       }
     });
@@ -1278,7 +1296,47 @@ It should be run by an MCP client like Claude Desktop.
   async run() {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    
+
+    // グレースフルシャットダウンハンドラ
+    const cleanup = async (signal: string) => {
+      console.error(`\n[SHUTDOWN] Received ${signal}, shutting down gracefully...`);
+
+      try {
+        // 1. 実行中のジョブをキャンセル
+        const runningJobs = this.jobDatabase.getRunningJobs();
+        if (runningJobs.length > 0) {
+          console.error(`[SHUTDOWN] Cancelling ${runningJobs.length} running job(s)...`);
+          for (const job of runningJobs) {
+            if (job.status === 'running' || job.status === 'pending') {
+              this.jobManager.cancelJob(job.id);
+            }
+          }
+        }
+
+        // 2. Job Managerのクリーンアップ
+        this.jobManager.destroy();
+
+        // 3. データベース接続を閉じる
+        console.error('[SHUTDOWN] Closing database connection...');
+        this.jobDatabase.close();
+
+        // 4. MCPサーバーを閉じる
+        console.error('[SHUTDOWN] Closing MCP server...');
+        await this.server.close();
+
+        console.error('[SHUTDOWN] Shutdown complete');
+        process.exit(0);
+      } catch (error) {
+        console.error('[SHUTDOWN] Error during shutdown:', error);
+        process.exit(1);
+      }
+    };
+
+    // シグナルハンドラを登録
+    process.on('SIGINT', () => cleanup('SIGINT'));
+    process.on('SIGTERM', () => cleanup('SIGTERM'));
+    process.on('beforeExit', () => cleanup('beforeExit'));
+
     if (process.env.DEBUG) {
       console.error("VertexAI Imagen MCP server running on stdio (DEBUG mode)");
     } else {

@@ -21,7 +21,7 @@
   ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^0.6.0",
-    "axios": "^1.6.0",
+    "axios": "^1.7.7",
     "better-sqlite3": "^11.0.0",
     "google-auth-library": "^10.1.0",
     "googleapis": "^153.0.0",
@@ -30,7 +30,8 @@
     "png-chunks": "^1.0.0",
     "png-chunks-encode": "^1.0.0",
     "png-chunks-extract": "^1.0.0",
-    "sharp": "^0.34.4"
+    "sharp": "^0.34.4",
+    "zod": "^4.1.12"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.0",

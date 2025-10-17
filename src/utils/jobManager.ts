@@ -19,6 +19,7 @@ import { editImage } from '../tools/editImage.js';
 import { customizeImage } from '../tools/customizeImage.js';
 import { upscaleImage } from '../tools/upscaleImage.js';
 import { generateAndUpscaleImage } from '../tools/generateAndUpscaleImage.js';
+import { logErrorWithStack, getErrorMessage } from './error.js';
 
 export class JobManager {
   private db: JobDatabase;
@@ -27,6 +28,7 @@ export class JobManager {
   private maxConcurrentJobs: number;
   private runningJobs: Set<string> = new Set();
   private cancelledJobs: Set<string> = new Set();
+  private cleanupInterval: NodeJS.Timeout | null = null;
 
   constructor(
     db: JobDatabase,
@@ -41,6 +43,11 @@ export class JobManager {
 
     // 起動時に未完了のジョブを再開
     this.resumePendingJobs();
+
+    // 定期的にcancelledJobsをクリーンアップ（メモリリーク防止）
+    this.cleanupInterval = setInterval(() => {
+      this.cleanupCancelledJobs();
+    }, 600000); // 10分ごと
   }
 
   /**
@@ -48,7 +55,7 @@ export class JobManager {
    */
   createJob(
     type: JobType,
-    params: GenerateImageArgs | EditImageArgs | CustomizeImageArgs | UpscaleImageArgs | GenerateAndUpscaleImageArgs
+    params: Record<string, any>
   ): string {
     const jobId = randomUUID();
     const job: Job = {
@@ -112,12 +119,14 @@ export class JobManager {
       if (process.env.DEBUG) {
         console.error(`[DEBUG] Resuming ${pendingJobs.length} pending job(s)`);
       }
-      // pending/runningステータスのジョブをpendingにリセット
-      for (const job of pendingJobs) {
-        if (job.status === 'running') {
-          this.db.updateJobStatus(job.id, 'pending');
+      // pending/runningステータスのジョブをpendingにリセット（トランザクション内で実行）
+      this.db.transaction(() => {
+        for (const job of pendingJobs) {
+          if (job.status === 'running') {
+            this.db.updateJobStatus(job.id, 'pending');
+          }
         }
-      }
+      });
       this.processJobs();
     }
   }
@@ -199,18 +208,50 @@ export class JobManager {
         this.db.updateJobResult(jobId, jobResult);
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = getErrorMessage(error);
       this.db.updateJobError(jobId, errorMessage);
 
-      if (process.env.DEBUG) {
-        console.error(`[DEBUG] Job ${jobId} failed: ${errorMessage}`);
-      }
+      // エラーをスタックトレース付きでログ出力
+      logErrorWithStack(`Job ${jobId} failed`, error);
     } finally {
       this.runningJobs.delete(jobId);
       this.cancelledJobs.delete(jobId);
 
       // 次のジョブを処理
       this.processJobs();
+    }
+  }
+
+  /**
+   * cancelledJobsをクリーンアップ（メモリリーク防止）
+   * 完了済みの古いジョブをSetから削除
+   */
+  private cleanupCancelledJobs(): void {
+    const OLD_JOB_THRESHOLD = 3600000; // 1時間
+    const now = Date.now();
+
+    for (const jobId of this.cancelledJobs) {
+      const job = this.db.getJob(jobId);
+
+      // ジョブが存在しない、または完了して1時間以上経過している場合は削除
+      if (!job ||
+          (job.completedAt && (now - job.completedAt.getTime() > OLD_JOB_THRESHOLD))) {
+        this.cancelledJobs.delete(jobId);
+
+        if (process.env.DEBUG) {
+          console.error(`[DEBUG] Cleaned up cancelled job: ${jobId}`);
+        }
+      }
+    }
+  }
+
+  /**
+   * JobManagerを破棄（クリーンアップインターバルを停止）
+   */
+  destroy(): void {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
     }
   }
 
