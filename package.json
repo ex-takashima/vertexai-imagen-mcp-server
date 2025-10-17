@@ -20,6 +20,7 @@
     "README.md"
   ],
   "dependencies": {
+    "@dondonudonjp/vertexai-imagen-mcp-server": "file:dondonudonjp-vertexai-imagen-mcp-server-0.7.0.tgz",
     "@modelcontextprotocol/sdk": "^0.6.0",
     "axios": "^1.7.7",
     "better-sqlite3": "^11.0.0",
