@@ -4,17 +4,34 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![npm downloads](https://img.shields.io/npm/dm/@dondonudonjp/vertexai-imagen-mcp-server.svg)](https://www.npmjs.com/package/@dondonudonjp/vertexai-imagen-mcp-server)
 
-**🆕 Latest Update (v0.6.0)**: プロンプトテンプレートフォルダのデフォルト保存先を画像出力先配下に変更（`[VERTEXAI_IMAGEN_OUTPUT_DIR]/templates`）
+**🆕 Latest Update (v0.8.0)**: Runtime Validation, API Rate Limiting, Enhanced Environment Variable Support
+
+**New in v0.8.0:**
+- 🛡️ **Runtime Validation** - Comprehensive input validation with Zod for all 24 tools
+- 🚦 **API Rate Limiting** - Prevent quota exhaustion with configurable rate limits
+- ✅ **Environment Variable Validation** - Startup validation with helpful error messages
+- 🔐 **Enhanced Authentication** - Full support for `GOOGLE_APPLICATION_CREDENTIALS`
+- 📚 **Documentation** - New [Quick Start Guide](docs/QUICK_START.md) and [Environment Variables Reference](docs/ENVIRONMENT_VARIABLES.md)
 
 Vertex AI の Imagen API を使用して画像を生成・編集できる MCP（Model Context Protocol）対応サーバーです。Claude Desktop などの MCP クライアントと連携することで、チャット内から自然言語で高度な画像操作が行えます。
 
 ---
 
+## 📚 Documentation
+
+- **[Quick Start Guide](docs/QUICK_START.md)** - Get started in 5 minutes
+- **[Environment Variables Reference](docs/ENVIRONMENT_VARIABLES.md)** - Complete reference for all 20 environment variables
+- **[CHANGELOG](CHANGELOG.md)** - Version history and release notes
+- **[History & Metadata Guide](docs/HISTORY_FEATURES.md)** - History management and metadata embedding
+
+---
+
 ## 🌟 主な機能
 
+### 画像生成・編集
 - 🎨 **画像生成**：テキストから高品質な画像を生成
-- ✨ **画像カスタマイズ（NEW!）**：参照画像を使った高度な画像生成（構造制御、被写体一貫性、スタイル転送）
-- 📝 **YAML設定ファイル対応（NEW!）**：複雑なカスタマイズパラメータをYAMLで管理、テンプレート再利用が可能
+- ✨ **画像カスタマイズ**：参照画像を使った高度な画像生成（構造制御、被写体一貫性、スタイル転送）
+- 📝 **YAML設定ファイル対応**：複雑なカスタマイズパラメータをYAMLで管理、テンプレート再利用が可能
 - ✂️ **高度な画像編集**：AIマスク生成、セマンティック編集、背景置換対応
 - 🎭 **マスクなし編集**：プロンプトのみで簡単に画像編集
 - 🎯 **5つのマスクモード**：マスクフリー、手動マスク、背景自動検出、前景自動検出、セマンティック分割
@@ -22,8 +39,15 @@ Vertex AI の Imagen API を使用して画像を生成・編集できる MCP（
 - 📐 **アスペクト比の指定**：1:1, 3:4, 4:3, 9:16, 16:9 に対応
 - 🔍 **アップスケーリング**：画像を 2 倍または 4 倍に高品質拡大
 - ⚡ **統合処理**：生成と拡大を一括実行
+
+### セキュリティ・品質
+- 🛡️ **Runtime Validation** (v0.8.0+)：Zodによる包括的な入力検証（全24ツール）
+- 🚦 **API Rate Limiting** (v0.8.0+)：設定可能なレート制限でAPI quota超過を防止
+- ✅ **Environment Validation** (v0.8.0+)：起動時の環境変数検証で設定ミスを早期発見
 - 🛡️ **安全性フィルター**：安全レベルを柔軟に制御
 - 👤 **人物生成制御**：人物の生成有無を細かく設定
+
+### 管理・ユーティリティ
 - 📁 **画像管理**：生成済み画像の一覧表示・操作
 - 🏷️ **セマンティッククラスID検索**：画像編集用の194種類のオブジェクトクラスをカテゴリ別・キーワードで検索
 - 🔗 **MCP Resources API**：file:// URI による効率的な画像配信（トークン消費を大幅削減）
@@ -41,11 +65,17 @@ Vertex AI の Imagen API を使用して画像を生成・編集できる MCP（
 
 ## 🚀 セットアップ手順
 
+> 💡 **Quick Start**: 5分でセットアップしたい方は [Quick Start Guide](docs/QUICK_START.md) をご覧ください。
+
+> 📚 **Environment Variables**: 全環境変数の詳細は [Environment Variables Reference](docs/ENVIRONMENT_VARIABLES.md) を参照してください。
+
 ### 1. 認証方式の選択
 
-このMCPサーバーは、2つの認証方式に対応しています：
+このMCPサーバーは、3つの認証方式に対応しています：
 
 #### A. API KEY認証（テスト・開発用）⭐ **推奨：初心者向け**
+
+環境変数: `GOOGLE_API_KEY` + `GOOGLE_PROJECT_ID`
 
 **メリット:**
 - ✅ 設定が簡単（キーファイル不要）
@@ -88,16 +118,34 @@ https://cloud.google.com/vertex-ai/docs/generative-ai/quotas-genai.
 
 ---
 
-#### B. サービスアカウント認証（本番環境用）
+#### B. サービスアカウント（ファイル）認証（本番環境用）✅ **推奨：本番環境**
+
+環境変数: `GOOGLE_APPLICATION_CREDENTIALS`（ファイルパス）
 
 **メリット:**
 - ✅ 本番環境推奨
+- ✅ 標準的なGoogle Cloud認証方式
 - ✅ より強固なセキュリティ
 - ✅ プロジェクトID自動検出
 
 **デメリット:**
 - ⚠️ 設定がやや複雑（キーファイルのダウンロードと配置が必要）
 - ⚠️ IAM権限の設定が必要
+
+---
+
+#### C. サービスアカウント（JSON文字列）認証（CI/CD用）
+
+環境変数: `GOOGLE_SERVICE_ACCOUNT_KEY`（JSON文字列）
+
+**メリット:**
+- ✅ CI/CD環境に最適
+- ✅ コンテナ環境で便利
+- ✅ ファイルシステム不要
+
+**デメリット:**
+- ⚠️ JSON文字列のエスケープが必要
+- ⚠️ 設定ファイルが長くなる
 
 ---
 
@@ -1144,19 +1192,57 @@ vertexai-imagen-mcp-server --help
 vertexai-imagen-mcp-server --version
 ```
 
-| 変数名                              | 必須 | 説明                          |
-| -------------------------------- | -- | --------------------------- |
-| `GOOGLE_APPLICATION_CREDENTIALS` | ✅  | サービスアカウントJSONの絶対パス          |
-| `GOOGLE_SERVICE_ACCOUNT_KEY`     | ✅  | JSON文字列として直接渡す（代替手段）        |
-| `GOOGLE_PROJECT_ID`              | ❌  | プロジェクトID（通常は自動取得）           |
-| `GOOGLE_REGION`                  | ❌  | 利用リージョン（例: asia-northeast1） |
-| `VERTEXAI_IMAGEN_OUTPUT_DIR`     | ❌  | 画像ファイルのデフォルト保存先ディレクトリ（省略時: ~/Downloads/vertexai-imagen-files） |
-| `VERTEXAI_IMAGEN_TEMPLATES_DIR`  | ❌  | プロンプトテンプレートの保存先ディレクトリ（省略時: `[VERTEXAI_IMAGEN_OUTPUT_DIR]/templates`） |
-| `VERTEXAI_IMAGEN_THUMBNAIL`      | ❌  | サムネイル生成の有効化（`true`で有効、省略時: 無効）。約30-50トークン/画像消費 |
-| `VERTEXAI_IMAGEN_DB`             | ❌  | 履歴データベースファイルのパス（省略時: `[VERTEXAI_IMAGEN_OUTPUT_DIR]/data/vertexai-imagen.db`） |
-| `VERTEXAI_IMAGEN_EMBED_METADATA` | ❌  | 画像へのメタデータ埋め込み（省略時: true）。`false` または `0` で無効化 |
-| `VERTEXAI_IMAGEN_METADATA_LEVEL` | ❌  | メタデータ埋め込みレベル: `minimal`, `standard`（デフォルト）, `full` |
-| `DEBUG`                          | ❌  | "1" を指定するとデバッグログ有効          |
+> 📚 **Complete Reference**: すべての環境変数の詳細は [Environment Variables Reference](docs/ENVIRONMENT_VARIABLES.md) を参照してください。
+
+### 主要な環境変数
+
+| 変数名 | 必須 | デフォルト | 説明 |
+|--------|------|-----------|------|
+| **認証（いずれか1つ必須）** ||||
+| `GOOGLE_API_KEY` | ⚠️ | - | Google Cloud API Key（テスト・開発用） |
+| `GOOGLE_APPLICATION_CREDENTIALS` | ⚠️ | - | サービスアカウントJSONファイルパス（本番推奨） |
+| `GOOGLE_SERVICE_ACCOUNT_KEY` | ⚠️ | - | サービスアカウントJSON文字列（CI/CD用） |
+| `GOOGLE_PROJECT_ID` | ✅* | auto | プロジェクトID（*API Key使用時は必須） |
+| **パフォーマンス** ||||
+| `VERTEXAI_RATE_LIMIT_MAX_CALLS` | ❌ | 60 | レート制限：時間枠内の最大API呼び出し数 |
+| `VERTEXAI_RATE_LIMIT_WINDOW_MS` | ❌ | 60000 | レート制限：時間枠（ミリ秒、1分） |
+| `VERTEXAI_IMAGEN_MAX_CONCURRENT_JOBS` | ❌ | 2 | 同時実行ジョブ数（1-10） |
+| **ストレージ** ||||
+| `VERTEXAI_IMAGEN_OUTPUT_DIR` | ❌ | `~/vertexai-imagen-output` | 画像保存先ディレクトリ |
+| `VERTEXAI_IMAGEN_DB` | ❌ | `[OUTPUT_DIR]/data/vertexai-imagen.db` | 履歴データベースパス |
+| `VERTEXAI_IMAGEN_TEMPLATES_DIR` | ❌ | `[OUTPUT_DIR]/templates` | テンプレート保存先 |
+| **画像処理** ||||
+| `VERTEXAI_IMAGEN_THUMBNAIL` | ❌ | `false` | サムネイル自動生成（`true`/`false`） |
+| `VERTEXAI_IMAGEN_THUMBNAIL_SIZE` | ❌ | 256 | サムネイルサイズ（0-1000ピクセル） |
+| `VERTEXAI_IMAGEN_THUMBNAIL_QUALITY` | ❌ | 80 | サムネイルJPEG品質（0-100） |
+| **メタデータ** ||||
+| `VERTEXAI_IMAGEN_EMBED_METADATA` | ❌ | `true` | 画像へのメタデータ埋め込み |
+| `VERTEXAI_IMAGEN_METADATA_LEVEL` | ❌ | `standard` | メタデータレベル（minimal/standard/full） |
+| **デバッグ** ||||
+| `DEBUG` | ❌ | - | デバッグログ有効化（任意の値で有効） |
+
+### 新機能（v0.8.0+）
+
+#### 🛡️ Runtime Validation
+すべてのツール入力を起動時に検証し、不正なパラメータを事前に検出します。
+
+#### 🚦 API Rate Limiting
+```json
+{
+  "env": {
+    "VERTEXAI_RATE_LIMIT_MAX_CALLS": "60",
+    "VERTEXAI_RATE_LIMIT_WINDOW_MS": "60000"
+  }
+}
+```
+設定例：60回/分（1分あたり最大60回のAPI呼び出し）
+
+#### ✅ Environment Variable Validation
+起動時に全環境変数を自動検証：
+- 認証方法の確認
+- 数値範囲のチェック
+- JSONフォーマット検証
+- 明確なエラーメッセージとセットアップガイド表示
 
 ---
 

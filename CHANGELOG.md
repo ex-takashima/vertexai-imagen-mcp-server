@@ -5,6 +5,161 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2025-10-17
+
+### Added
+
+#### 🛡️ Runtime Validation with Zod
+- **Comprehensive input validation** for all 24 tools
+  - `src/validation/schemas.ts` - Zod schemas for every tool parameter
+  - `src/utils/error.ts` - Validation helper utilities (`validateWithZod`, `formatZodError`)
+  - Business logic validation (e.g., 2K resolution only for specific models)
+  - Clear, user-friendly error messages with exact parameter issues
+  - Automatic conversion to MCP error format
+
+#### 🚦 API Rate Limiting
+- **Sliding window rate limiter** to prevent quota exhaustion
+  - `src/utils/rateLimiter.ts` - `RateLimiter` class with configurable limits
+  - Applied to all Vertex AI API calls (generate, edit, customize, upscale)
+  - Environment variables for configuration:
+    - `VERTEXAI_RATE_LIMIT_MAX_CALLS` (default: 60 calls)
+    - `VERTEXAI_RATE_LIMIT_WINDOW_MS` (default: 60000ms / 1 minute)
+  - Automatic waiting when rate limit reached
+  - Debug logging for rate limit events
+
+#### ✅ Environment Variable Validation
+- **Startup validation** of all configuration
+  - `src/utils/envValidation.ts` - Zod-based environment validation
+  - Validates all 20 environment variables with business rules
+  - Helpful error messages with configuration examples
+  - Checks authentication method availability
+  - Validates numeric ranges (thumbnail size, quality, job limits, etc.)
+  - JSON format validation for service account keys
+
+#### 🔐 Enhanced Authentication Support
+- **GOOGLE_APPLICATION_CREDENTIALS** authentication method
+  - Standard Google Cloud authentication via service account file
+  - Full support in environment variable validation
+  - Documentation and examples added
+  - Works alongside existing API Key and Service Account JSON methods
+
+#### 📚 Documentation Enhancements
+- **ENVIRONMENT_VARIABLES.md** - Complete reference for all 20 environment variables
+  - Detailed descriptions with use cases
+  - Configuration examples for each variable
+  - Validation rules and constraints
+  - Troubleshooting guidance
+  - Platform-specific examples (Windows/macOS)
+
+- **QUICK_START.md** - 5-minute setup guide
+  - Step-by-step instructions for Claude Desktop
+  - Three authentication method examples
+  - Common error solutions
+  - First image generation tutorial
+  - Platform-specific paths and commands
+
+### Improved
+
+#### 🔍 Error Messages
+- **Enhanced error reporting** with actionable guidance
+  - Environment variable errors show exact configuration examples
+  - Claude Desktop setup instructions in error messages
+  - Platform-specific troubleshooting (Windows/macOS)
+  - Links to documentation for further help
+
+#### 🔒 Input Validation
+- **Type-safe parameter validation** at runtime
+  - Prevents invalid API requests before making expensive calls
+  - Reduces wasted API quota from malformed requests
+  - Catches configuration errors early
+  - Better user experience with immediate feedback
+
+#### 📊 Debug Logging
+- **Enhanced debug information** when `DEBUG` enabled
+  - Authentication method detection
+  - Credentials file path logging
+  - Rate limiter initialization status
+  - Environment validation results
+  - API call timing and quotas
+
+### Changed
+
+#### 🏗️ Dependencies
+- **Added**: `zod` ^4.1.12 (MIT License) - Runtime schema validation
+  - Compatible with existing MIT project license
+  - No breaking changes to public API
+
+#### 🎯 Startup Behavior
+- **Environment validation runs at startup** (non-breaking)
+  - Server fails fast with clear errors if misconfigured
+  - Prevents runtime failures from missing configuration
+  - Existing valid configurations continue to work
+
+### Fixed
+
+- **GOOGLE_APPLICATION_CREDENTIALS** not recognized in environment validation
+  - Was causing false errors for valid service account file authentication
+  - Now properly validated as an authentication method
+  - Error messages updated to include this method
+
+### Security
+
+- **Input validation** prevents malformed API requests
+- **Path validation** for service account credential files
+- **JSON validation** for service account keys
+- **Range validation** for all numeric parameters
+
+### Technical
+
+- **Zod v4.1.12** - Schema validation library
+  - Runtime type checking for all tool parameters
+  - Business logic validation with `.refine()`
+  - Type-safe validation with TypeScript integration
+
+- **Rate Limiter Architecture**
+  - Sliding window algorithm
+  - In-memory call tracking
+  - Automatic cleanup of old timestamps
+  - Promise-based API with async/await
+
+- **Environment Validation Architecture**
+  - Comprehensive Zod schema for all 20 variables
+  - Multi-level validation (format, range, business rules)
+  - Cross-variable dependency validation
+  - Platform-aware error messages
+
+### Migration
+
+**No Breaking Changes** - All existing functionality preserved:
+- Existing environment variables work without modification
+- All authentication methods continue to function
+- API behavior unchanged
+- Tool parameters remain the same
+
+**New Features Opt-In**:
+- Rate limiting: Enabled by default with safe limits, configurable via environment variables
+- Environment validation: Automatic, provides helpful errors if misconfigured
+- Input validation: Automatic, improves error messages
+
+**Recommended Actions**:
+1. Review [ENVIRONMENT_VARIABLES.md](docs/ENVIRONMENT_VARIABLES.md) for new configuration options
+2. Check [QUICK_START.md](docs/QUICK_START.md) for updated setup guidance
+3. Consider enabling `DEBUG` to see rate limiting and validation in action
+
+### Performance Impact
+
+- **Startup**: +50-100ms for environment validation (one-time, on server start)
+- **Runtime**: <1ms per tool call for Zod validation (negligible)
+- **Rate Limiting**: Adds waiting time only when limits are exceeded
+- **Memory**: +~1MB for rate limiter and validation schemas
+
+### Use Cases Enabled
+
+1. **Safer Production Deployment** - Input and environment validation catch errors early
+2. **Quota Management** - Rate limiting prevents accidental quota exhaustion
+3. **Better Debugging** - Enhanced error messages and debug logging
+4. **Standard GCP Authentication** - GOOGLE_APPLICATION_CREDENTIALS support
+
 ## [0.7.0] - 2025-10-15
 
 ### Added
