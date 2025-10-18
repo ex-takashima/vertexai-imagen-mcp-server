@@ -3,7 +3,7 @@
  */
 
 import Database from 'better-sqlite3';
-import { mkdir } from 'fs/promises';
+import { mkdirSync } from 'fs';
 import { dirname } from 'path';
 import type { Job, JobStatus, JobType } from '../types/job.js';
 import type { ImageRecord, ListHistoryFilters } from '../types/history.js';
@@ -27,11 +27,16 @@ export class JobDatabase {
   } = {};
 
   constructor(dbPath: string) {
-    // データベースディレクトリの作成
+    // データベースディレクトリの作成（同期的に実行）
     const dbDir = dirname(dbPath);
-    mkdir(dbDir, { recursive: true }).catch(() => {
+    try {
+      mkdirSync(dbDir, { recursive: true });
+    } catch (error: any) {
       // ディレクトリが既に存在する場合は無視
-    });
+      if (error.code !== 'EEXIST') {
+        throw error;
+      }
+    }
 
     this.db = new Database(dbPath);
     this.initialize();
