@@ -172,10 +172,17 @@ export class BatchProcessor {
             : undefined;
         } else if (job.status === 'failed') {
           result.status = 'failed';
-          result.error = job.error || 'Unknown error';
+          // エラーメッセージを取得（空文字列や未定義の場合はデフォルトメッセージ）
+          const errorMsg = job.error && job.error.trim() ? job.error : 'Job failed with no error message';
+          result.error = errorMsg;
           result.duration_ms = job.completedAt
             ? job.completedAt.getTime() - job.createdAt.getTime()
             : undefined;
+
+          // デバッグ: エラー内容を確認
+          if (process.env.DEBUG) {
+            console.error(`[DEBUG] Job ${jobId} failed. DB error field: "${job.error}", Using error: "${result.error}"`);
+          }
         } else {
           allCompleted = false; // まだ実行中のジョブがある
         }
@@ -228,8 +235,11 @@ export class BatchProcessor {
       if (r.output_path) {
         lines.push(`  Output: ${r.output_path}`);
       }
-      if (r.error) {
+      if (r.error && r.error.trim()) {
         lines.push(`  Error: ${r.error}`);
+      } else if (r.status === 'failed' || r.status === 'cancelled') {
+        // ステータスがfailed/cancelledなのにエラーメッセージがない場合
+        lines.push(`  Error: No error message recorded`);
       }
       if (r.duration_ms !== undefined) {
         lines.push(`  Duration: ${r.duration_ms}ms`);
