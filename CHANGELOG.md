@@ -5,6 +5,90 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2025-01-28
+
+### Added
+
+#### 🎯 バッチ画像生成機能
+- **CLI バッチ処理**: 新しいコマンド `vertexai-imagen-batch` を追加
+  - JSON形式のバッチ設定ファイルから複数の画像を一括生成
+  - `--output-dir`, `--format`, `--timeout` オプション対応
+  - テキストまたはJSON形式での結果出力
+  - 非同期ジョブキューシステムとの統合
+  - 同時実行数制御（`VERTEXAI_IMAGEN_MAX_CONCURRENT_JOBS`）
+  - 詳細な進捗レポートとエラーハンドリング
+
+- **GitHub Actions ワークフロー**: Issueコメントトリガーによる自動画像生成
+  - `batch-image-generation.yml`: GitHub-hosted ランナー対応（トリガー: `/batch`）
+  - `batch-image-generation-macos.yml`: Self-hosted macOS ランナー対応（トリガー: `/batch-macos`）
+  - 生成結果を自動的にIssueコメントで報告
+  - 生成画像をGitHub Actionsアーティファクトとして保存（7日間保持）
+  - サービスアカウント認証の自動セットアップとクリーンアップ
+
+#### 🔐 認証の強化
+- **GitHub Actions向け認証改善**
+  - 環境変数ベースの認証チェック（`if`条件のエラーを回避）
+  - サービスアカウントキーの安全な一時ファイル管理
+  - APIキーへの自動フォールバック
+  - わかりやすいログメッセージとエラーハンドリング
+
+#### 📚 ドキュメント
+- **`docs/BATCH_PROCESSING.md`**: 包括的なバッチ処理ガイド
+  - CLIとGitHub Actionsの使用方法
+  - GitHub-hosted vs Self-hosted ランナーの比較
+  - Self-hosted ランナーのセットアップ手順
+  - サービスアカウント認証の詳細な設定方法
+  - トラブルシューティングガイド
+
+- **サンプル設定ファイル**:
+  - `examples/batch-simple.json`: シンプルな3画像生成
+  - `examples/batch-advanced.json`: 詳細設定付き5画像生成
+  - `examples/batch-bulk.json`: 大量生成用10画像サンプル
+  - `examples/README.md`: サンプル使用方法の詳細説明
+
+- **ワークフロードキュメント**:
+  - `.github/workflows/README.md`: ワークフローの詳細説明
+  - Self-hosted ランナーのセットアップガイド
+  - トラブルシューティングと FAQ
+
+#### 🧪 テスト
+- `src/types/batch.test.ts`: バッチ型定義のユニットテスト
+- `src/batch.test.ts`: バッチ処理ロジックのテスト
+  - バッチ設定の読み込みとバリデーション
+  - 結果フォーマット（JSON/テキスト）のテスト
+
+### Changed
+
+- **package.json**:
+  - バージョンを 0.8.0 から 0.9.0 に更新
+  - 新しいCLIコマンド `vertexai-imagen-batch` を bin に追加
+  - 新しいスクリプト `batch`, `dev:batch` を追加
+
+### Technical Details
+
+#### 新しいファイル
+- `src/types/batch.ts` - バッチ処理の型定義
+- `src/batch.ts` - バッチ処理ロジック（BatchProcessorクラス）
+- `src/cli.ts` - CLIインターフェース
+- `src/types/batch.test.ts` - バッチ型定義のテスト
+- `src/batch.test.ts` - バッチ処理のテスト
+- `.github/workflows/batch-image-generation.yml` - GitHub-hosted用ワークフロー
+- `.github/workflows/batch-image-generation-macos.yml` - Self-hosted macOS用ワークフロー
+- `.github/workflows/README.md` - ワークフロードキュメント
+- `docs/BATCH_PROCESSING.md` - バッチ処理ガイド
+- `examples/batch-*.json` - サンプル設定ファイル
+- `examples/README.md` - サンプル説明
+
+#### 主な機能
+- JobManagerとの統合による非同期ジョブ処理
+- 同時実行数制御とタイムアウト管理
+- 進捗状況のリアルタイム表示
+- 詳細な結果レポート（成功/失敗/キャンセル）
+- エラーハンドリングとグレースフルシャットダウン
+- GitHub ActionsでのCI/CD統合
+
+---
+
 ## [0.8.0] - 2025-10-17
 
 ### Added
