@@ -6,7 +6,7 @@ lib/
 
 # Dependencies
 node_modules/
-package-lock.json
+# package-lock.json をコミットする（GitHub Actions のキャッシュに必要）
 yarn.lock
 pnpm-lock.yaml
 
