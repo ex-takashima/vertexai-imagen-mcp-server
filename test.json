@@ -1,0 +1,25 @@
+{
+  "jobs": [
+    {
+      "prompt": "A photorealistic portrait of a smiling woman",
+      "output_filename": "portrait.png",
+      "aspect_ratio": "3:4",
+      "safety_level": "BLOCK_MEDIUM_AND_ABOVE",
+      "person_generation": "ALLOW_ADULT",
+      "language": "en",
+      "model": "imagen-4.0-generate-001",
+      "sample_image_size": "2K",
+      "include_thumbnail": false
+    },
+    {
+      "prompt": "A minimalist abstract art piece with geometric shapes",
+      "output_filename": "abstract.png",
+      "aspect_ratio": "1:1",
+      "safety_level": "BLOCK_ONLY_HIGH",
+      "model": "imagen-4.0-fast-generate-001"
+    }
+  ],
+  "output_dir": "./generated-images",
+  "max_concurrent": 3,
+  "timeout": 900000
+}
