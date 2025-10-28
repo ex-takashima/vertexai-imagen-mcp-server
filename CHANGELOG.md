@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.1] - 2025-10-28
+
+### Fixed
+- **バッチ処理のエラー表示**: 失敗したジョブのエラーメッセージが正しく表示されるように修正
+  - 結果配列の初期状態を `'pending'` に変更（以前は `'failed'` だったためステータスチェックがスキップされていた）
+  - エラーメッセージが空/未定義の場合にデフォルトメッセージを表示
+- **デバッグログの強化**: ジョブ作成、ステータスチェック、Duration計算などの詳細ログを追加
+
+### Added
+- **ジョブクリアスクリプト**: データベース内の古いジョブをクリアする `clear-jobs` コマンドを追加
+  - `npm run clear-jobs`: ジョブの状態を確認
+  - `npm run clear-jobs -- --clear-pending`: pending ジョブをクリア
+  - `npm run clear-jobs -- --clear-running`: running ジョブをクリア
+  - `npm run clear-jobs -- --clear-all`: 全ての pending/running ジョブをクリア
+
 ## [0.9.0] - 2025-01-28
 
 ### Added
