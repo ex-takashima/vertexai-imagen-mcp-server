@@ -73,10 +73,17 @@ jobs:
         run: mkdir -p ./output
 
       - name: Setup Google Cloud credentials
-        if: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS != '' }}
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS_CONTENT: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
         run: |
-          echo '${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}' > ${{ runner.temp }}/gcloud-key.json
+          if [ -z "$GOOGLE_APPLICATION_CREDENTIALS_CONTENT" ]; then
+            echo "⏭️  GOOGLE_APPLICATION_CREDENTIALS が設定されていないためスキップ"
+            echo "ℹ️  GOOGLE_API_KEY による認証を使用します"
+            exit 0
+          fi
+          echo "$GOOGLE_APPLICATION_CREDENTIALS_CONTENT" > ${{ runner.temp }}/gcloud-key.json
           echo "GOOGLE_APPLICATION_CREDENTIALS=${{ runner.temp }}/gcloud-key.json" >> $GITHUB_ENV
+          echo "✅ サービスアカウント認証を設定しました"
 
       - name: Run batch image generation
         id: batch-run

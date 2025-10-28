@@ -73,14 +73,22 @@ jobs:
         run: mkdir -p ./output
 
       - name: Setup Google Cloud credentials (Service Account)
-        if: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS != '' }}
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS_CONTENT: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
         run: |
+          if [ -z "$GOOGLE_APPLICATION_CREDENTIALS_CONTENT" ]; then
+            echo "⏭️  GOOGLE_APPLICATION_CREDENTIALS が設定されていないためスキップ"
+            echo "ℹ️  macOS環境では GOOGLE_APPLICATION_CREDENTIALS の設定を推奨します"
+            echo "ℹ️  GOOGLE_API_KEY による認証を使用します"
+            exit 0
+          fi
           # macOS self-hosted runner用の一時ディレクトリ
           TEMP_DIR="${RUNNER_TEMP:-/tmp/github-runner-$$}"
           mkdir -p "$TEMP_DIR"
-          echo '${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}' > "$TEMP_DIR/gcloud-key.json"
+          echo "$GOOGLE_APPLICATION_CREDENTIALS_CONTENT" > "$TEMP_DIR/gcloud-key.json"
           echo "GOOGLE_APPLICATION_CREDENTIALS=$TEMP_DIR/gcloud-key.json" >> $GITHUB_ENV
           echo "TEMP_CREDENTIALS_FILE=$TEMP_DIR/gcloud-key.json" >> $GITHUB_ENV
+          echo "✅ サービスアカウント認証を設定しました（macOS self-hosted）"
 
       - name: Run batch image generation
         id: batch-run
