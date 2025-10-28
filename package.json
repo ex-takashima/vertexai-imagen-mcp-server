@@ -5,12 +5,15 @@
   "type": "module",
   "main": "build/index.js",
   "bin": {
-    "vertexai-imagen-mcp-server": "build/index.js"
+    "vertexai-imagen-mcp-server": "build/index.js",
+    "vertexai-imagen-batch": "build/cli.js"
   },
   "scripts": {
     "build": "npx tsc",
     "dev": "npx tsx src/index.ts",
+    "dev:batch": "npx tsx src/cli.ts",
     "start": "node build/index.js",
+    "batch": "node build/cli.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "prepublishOnly": "npm run build"

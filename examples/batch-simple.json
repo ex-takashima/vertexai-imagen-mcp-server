@@ -1,0 +1,19 @@
+{
+  "jobs": [
+    {
+      "prompt": "A beautiful sunset over the ocean",
+      "output_filename": "sunset.png",
+      "aspect_ratio": "16:9"
+    },
+    {
+      "prompt": "A futuristic city skyline at night",
+      "output_filename": "city.png",
+      "aspect_ratio": "16:9"
+    },
+    {
+      "prompt": "A serene mountain landscape",
+      "output_filename": "mountain.png",
+      "aspect_ratio": "4:3"
+    }
+  ]
+}

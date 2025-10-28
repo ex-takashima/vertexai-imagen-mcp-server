@@ -1,0 +1,56 @@
+{
+  "jobs": [
+    {
+      "prompt": "A red sports car on a race track",
+      "output_filename": "car_red.png",
+      "aspect_ratio": "16:9"
+    },
+    {
+      "prompt": "A blue sports car on a race track",
+      "output_filename": "car_blue.png",
+      "aspect_ratio": "16:9"
+    },
+    {
+      "prompt": "A green sports car on a race track",
+      "output_filename": "car_green.png",
+      "aspect_ratio": "16:9"
+    },
+    {
+      "prompt": "A yellow sports car on a race track",
+      "output_filename": "car_yellow.png",
+      "aspect_ratio": "16:9"
+    },
+    {
+      "prompt": "A black sports car on a race track",
+      "output_filename": "car_black.png",
+      "aspect_ratio": "16:9"
+    },
+    {
+      "prompt": "A white sports car on a race track",
+      "output_filename": "car_white.png",
+      "aspect_ratio": "16:9"
+    },
+    {
+      "prompt": "A silver sports car on a race track",
+      "output_filename": "car_silver.png",
+      "aspect_ratio": "16:9"
+    },
+    {
+      "prompt": "An orange sports car on a race track",
+      "output_filename": "car_orange.png",
+      "aspect_ratio": "16:9"
+    },
+    {
+      "prompt": "A purple sports car on a race track",
+      "output_filename": "car_purple.png",
+      "aspect_ratio": "16:9"
+    },
+    {
+      "prompt": "A pink sports car on a race track",
+      "output_filename": "car_pink.png",
+      "aspect_ratio": "16:9"
+    }
+  ],
+  "max_concurrent": 5,
+  "timeout": 1800000
+}

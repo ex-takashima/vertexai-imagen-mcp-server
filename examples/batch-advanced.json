@@ -1,0 +1,51 @@
+{
+  "jobs": [
+    {
+      "prompt": "A photorealistic portrait of a smiling woman in a professional business suit",
+      "output_filename": "portrait_business.png",
+      "aspect_ratio": "3:4",
+      "safety_level": "BLOCK_MEDIUM_AND_ABOVE",
+      "person_generation": "ALLOW_ADULT",
+      "language": "en",
+      "model": "imagen-4.0-generate-001",
+      "sample_image_size": "2K",
+      "include_thumbnail": true
+    },
+    {
+      "prompt": "A minimalist abstract art piece with geometric shapes in blue and gold",
+      "output_filename": "abstract_geometric.png",
+      "aspect_ratio": "1:1",
+      "safety_level": "BLOCK_ONLY_HIGH",
+      "model": "imagen-4.0-fast-generate-001",
+      "sample_image_size": "1K"
+    },
+    {
+      "prompt": "A cozy coffee shop interior with warm lighting, wooden furniture, and plants",
+      "output_filename": "coffee_shop.png",
+      "aspect_ratio": "16:9",
+      "safety_level": "BLOCK_MEDIUM_AND_ABOVE",
+      "language": "en",
+      "model": "imagen-3.0-generate-002"
+    },
+    {
+      "prompt": "A fantasy dragon flying over a medieval castle at sunset",
+      "output_filename": "fantasy_dragon.png",
+      "aspect_ratio": "16:9",
+      "safety_level": "BLOCK_MEDIUM_AND_ABOVE",
+      "model": "imagen-4.0-generate-001",
+      "sample_image_size": "2K"
+    },
+    {
+      "prompt": "A modern smartphone product shot on a white background with professional lighting",
+      "output_filename": "product_smartphone.png",
+      "aspect_ratio": "1:1",
+      "safety_level": "BLOCK_ONLY_HIGH",
+      "model": "imagen-4.0-ultra-generate-001",
+      "sample_image_size": "2K",
+      "include_thumbnail": true
+    }
+  ],
+  "output_dir": "./output",
+  "max_concurrent": 3,
+  "timeout": 900000
+}

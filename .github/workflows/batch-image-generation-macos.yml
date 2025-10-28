@@ -1,0 +1,209 @@
+name: Batch Image Generation (macOS Self-Hosted)
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  batch-generate:
+    # Issueコメントに /batch-macos が含まれる場合のみ実行
+    if: |
+      github.event.issue.state == 'open' &&
+      contains(github.event.comment.body, '/batch-macos')
+
+    runs-on: [self-hosted, macOS, macOS1]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build
+
+      - name: Extract JSON config from comment
+        id: extract-json
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const comment = context.payload.comment.body;
+
+            // JSONブロックを抽出（```json ... ``` 形式）
+            const jsonMatch = comment.match(/```json\s*([\s\S]*?)\s*```/);
+            if (!jsonMatch) {
+              core.setFailed('No JSON config found in comment. Please use ```json ... ``` format.');
+              return;
+            }
+
+            const jsonContent = jsonMatch[1];
+
+            // JSONの妥当性チェック
+            try {
+              const config = JSON.parse(jsonContent);
+              if (!config.jobs || !Array.isArray(config.jobs) || config.jobs.length === 0) {
+                core.setFailed('Invalid JSON config: "jobs" array is required and must not be empty.');
+                return;
+              }
+
+              // ファイルに保存
+              const fs = require('fs');
+              fs.writeFileSync('batch-config.json', jsonContent);
+
+              core.info(`Extracted ${config.jobs.length} job(s) from comment`);
+              core.setOutput('job_count', config.jobs.length);
+
+            } catch (error) {
+              core.setFailed(`Invalid JSON: ${error.message}`);
+              return;
+            }
+
+      - name: Create output directory
+        run: mkdir -p ./output
+
+      - name: Setup Google Cloud credentials (Service Account)
+        if: secrets.GOOGLE_APPLICATION_CREDENTIALS != ''
+        run: |
+          # macOS self-hosted runner用の一時ディレクトリ
+          TEMP_DIR="${RUNNER_TEMP:-/tmp/github-runner-$$}"
+          mkdir -p "$TEMP_DIR"
+          echo '${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}' > "$TEMP_DIR/gcloud-key.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$TEMP_DIR/gcloud-key.json" >> $GITHUB_ENV
+          echo "TEMP_CREDENTIALS_FILE=$TEMP_DIR/gcloud-key.json" >> $GITHUB_ENV
+
+      - name: Run batch image generation
+        id: batch-run
+        env:
+          # Google Cloud authentication (priority order: service account file > API key)
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          GOOGLE_PROJECT_ID: ${{ secrets.GOOGLE_PROJECT_ID }}
+          GOOGLE_REGION: ${{ secrets.GOOGLE_REGION || 'us-central1' }}
+          # Output configuration
+          VERTEXAI_IMAGEN_OUTPUT_DIR: ./output
+          VERTEXAI_IMAGEN_MAX_CONCURRENT_JOBS: ${{ secrets.MAX_CONCURRENT_JOBS || '2' }}
+        run: |
+          echo "Starting batch image generation on macOS self-hosted runner..."
+          npm run batch batch-config.json --output-dir ./output --format json > batch-result.json
+
+          # 結果を確認
+          if [ $? -eq 0 ]; then
+            echo "Batch generation completed successfully"
+            echo "result_status=success" >> $GITHUB_OUTPUT
+          else
+            echo "Batch generation completed with errors"
+            echo "result_status=partial" >> $GITHUB_OUTPUT
+          fi
+        continue-on-error: true
+
+      - name: Cleanup credentials
+        if: always()
+        run: |
+          if [ -n "$TEMP_CREDENTIALS_FILE" ] && [ -f "$TEMP_CREDENTIALS_FILE" ]; then
+            rm -f "$TEMP_CREDENTIALS_FILE"
+            echo "Cleaned up temporary credentials file"
+          fi
+
+      - name: Upload generated images
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-images-macos-${{ github.event.issue.number }}
+          path: ./output/**/*.png
+          retention-days: 7
+          if-no-files-found: warn
+
+      - name: Format and post result comment
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            let resultJson;
+            try {
+              const resultContent = fs.readFileSync('batch-result.json', 'utf-8');
+              resultJson = JSON.parse(resultContent);
+            } catch (error) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: `## ❌ Batch Image Generation Failed (macOS Self-Hosted)\n\nError: ${error.message}\n\nPlease check the [workflow logs](${context.payload.repository.html_url}/actions/runs/${context.runId}) for details.`
+              });
+              return;
+            }
+
+            // 結果サマリーを作成
+            const { total, succeeded, failed, started_at, finished_at, total_duration_ms, results } = resultJson;
+
+            const status = failed === 0 ? '✅' : succeeded > 0 ? '⚠️' : '❌';
+            const statusText = failed === 0 ? 'Completed Successfully' : succeeded > 0 ? 'Completed with Errors' : 'Failed';
+
+            let comment = `## ${status} Batch Image Generation ${statusText}\n`;
+            comment += `**Runner:** macOS Self-Hosted (macOS1)\n\n`;
+            comment += `**Summary:**\n`;
+            comment += `- Total Jobs: ${total}\n`;
+            comment += `- Succeeded: ${succeeded}\n`;
+            comment += `- Failed: ${failed}\n`;
+            comment += `- Duration: ${(total_duration_ms / 1000).toFixed(2)}s\n`;
+            comment += `- Started: ${started_at}\n`;
+            comment += `- Finished: ${finished_at}\n\n`;
+
+            // 成功した画像をリスト表示
+            if (succeeded > 0) {
+              comment += `### ✅ Successfully Generated Images\n\n`;
+              const successResults = results.filter(r => r.status === 'completed');
+              for (const r of successResults) {
+                const filename = r.output_path ? r.output_path.split('/').pop() : 'unknown';
+                comment += `- \`${filename}\`: ${r.prompt.substring(0, 60)}${r.prompt.length > 60 ? '...' : ''}\n`;
+              }
+              comment += `\n`;
+              comment += `📦 Download all generated images from the [workflow artifacts](${context.payload.repository.html_url}/actions/runs/${context.runId}).\n\n`;
+            }
+
+            // 失敗した画像をリスト表示
+            if (failed > 0) {
+              comment += `### ❌ Failed Jobs\n\n`;
+              const failedResults = results.filter(r => r.status === 'failed' || r.status === 'cancelled');
+              for (const r of failedResults) {
+                comment += `- **Error**: ${r.error || 'Unknown error'}\n`;
+                comment += `  - Prompt: ${r.prompt.substring(0, 60)}${r.prompt.length > 60 ? '...' : ''}\n`;
+              }
+              comment += `\n`;
+            }
+
+            comment += `---\n`;
+            comment += `<details>\n`;
+            comment += `<summary>View detailed results (JSON)</summary>\n\n`;
+            comment += `\`\`\`json\n${JSON.stringify(resultJson, null, 2)}\n\`\`\`\n`;
+            comment += `</details>\n`;
+
+            // コメントを投稿
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: comment
+            });
+
+      - name: Set workflow status
+        if: always()
+        run: |
+          if [ "${{ steps.batch-run.outputs.result_status }}" = "success" ]; then
+            echo "All jobs completed successfully"
+            exit 0
+          else
+            echo "Some jobs failed"
+            exit 1
+          fi
