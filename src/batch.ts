@@ -71,6 +71,9 @@ export class BatchProcessor {
       try {
         const jobId = this.jobManager.createJob('generate', args);
         jobIds.push(jobId);
+        if (process.env.DEBUG) {
+          console.error(`[DEBUG] Job created with ID: ${jobId}`);
+        }
       } catch (error) {
         console.error(`[BATCH] Failed to create job ${i + 1}:`, error);
         // エラーが発生してもジョブIDに空文字を追加して、インデックスを保持
@@ -121,9 +124,18 @@ export class BatchProcessor {
       results.push({
         job_id: jobIds[i] || 'N/A',
         prompt: items[i].prompt,
-        status: 'failed',
+        // ジョブ作成に失敗した場合のみ failed、それ以外は pending で初期化
+        status: jobIds[i] ? ('pending' as any) : 'failed',
         error: jobIds[i] ? undefined : 'Failed to create job',
       });
+    }
+
+    if (process.env.DEBUG) {
+      console.error(`[DEBUG] Waiting for ${jobIds.length} jobs to complete`);
+      for (let i = 0; i < jobIds.length; i++) {
+        const job = jobIds[i] ? this.jobDatabase.getJob(jobIds[i]) : null;
+        console.error(`[DEBUG] Job ${i + 1}: ID=${jobIds[i]}, initial DB status=${job?.status || 'not found'}`);
+      }
     }
 
     while (true) {
@@ -145,6 +157,9 @@ export class BatchProcessor {
 
       // 全てのジョブのステータスをチェック
       let allCompleted = true;
+      if (process.env.DEBUG) {
+        console.error(`[DEBUG] Checking job statuses (elapsed: ${Date.now() - startTime}ms)`);
+      }
       for (let i = 0; i < jobIds.length; i++) {
         const jobId = jobIds[i];
         if (!jobId) continue; // スキップ（ジョブ作成失敗）
@@ -158,7 +173,14 @@ export class BatchProcessor {
         if (!job) {
           result.status = 'failed';
           result.error = 'Job not found';
+          if (process.env.DEBUG) {
+            console.error(`[DEBUG] Job ${jobId} not found in database`);
+          }
           continue;
+        }
+
+        if (process.env.DEBUG && (job.status === 'failed' || job.status === 'completed')) {
+          console.error(`[DEBUG] Job ${jobId} status: ${job.status}, error: "${job.error || 'none'}"`);
         }
 
         if (job.status === 'completed') {
@@ -170,6 +192,10 @@ export class BatchProcessor {
           result.duration_ms = job.completedAt
             ? job.completedAt.getTime() - job.createdAt.getTime()
             : undefined;
+
+          if (process.env.DEBUG) {
+            console.error(`[DEBUG] Job ${jobId} completed successfully. Output: ${result.output_path}`);
+          }
         } else if (job.status === 'failed') {
           result.status = 'failed';
           // エラーメッセージを取得（空文字列や未定義の場合はデフォルトメッセージ）
@@ -182,6 +208,9 @@ export class BatchProcessor {
           // デバッグ: エラー内容を確認
           if (process.env.DEBUG) {
             console.error(`[DEBUG] Job ${jobId} failed. DB error field: "${job.error}", Using error: "${result.error}"`);
+            if (job.completedAt && job.createdAt) {
+              console.error(`[DEBUG] Duration calc: completedAt=${job.completedAt.toISOString()}, createdAt=${job.createdAt.toISOString()}, duration=${result.duration_ms}ms`);
+            }
           }
         } else {
           allCompleted = false; // まだ実行中のジョブがある
