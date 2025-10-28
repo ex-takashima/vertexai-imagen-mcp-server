@@ -73,7 +73,7 @@ jobs:
         run: mkdir -p ./output
 
       - name: Setup Google Cloud credentials (Service Account)
-        if: secrets.GOOGLE_APPLICATION_CREDENTIALS != ''
+        if: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS != '' }}
         run: |
           # macOS self-hosted runner用の一時ディレクトリ
           TEMP_DIR="${RUNNER_TEMP:-/tmp/github-runner-$$}"
