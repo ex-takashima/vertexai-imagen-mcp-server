@@ -97,7 +97,7 @@ jobs:
           VERTEXAI_IMAGEN_MAX_CONCURRENT_JOBS: ${{ secrets.MAX_CONCURRENT_JOBS || '2' }}
         run: |
           echo "Starting batch image generation..."
-          npm run batch batch-config.json --output-dir ./output --format json > batch-result.json
+          npm run batch -- batch-config.json --output-dir ./output --format json > batch-result.json
 
           # 結果を確認
           if [ $? -eq 0 ]; then
