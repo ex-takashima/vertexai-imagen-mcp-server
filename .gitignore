@@ -193,3 +193,7 @@ examples/generated/
 /.obsidian
 docs/THUMBNAIL_IMPLEMENTATION_PROPOSAL.md
 /.private
+
+# Test files for local batch processing
+test-simple.json
+test-output/
