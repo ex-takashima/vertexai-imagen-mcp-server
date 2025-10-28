@@ -8,8 +8,9 @@
 2. [CLIを使用したバッチ処理](#cliを使用したバッチ処理)
 3. [GitHub Actionsを使用したバッチ処理](#github-actionsを使用したバッチ処理)
 4. [バッチ設定のJSON形式](#バッチ設定のjson形式)
-5. [環境変数](#環境変数)
-6. [トラブルシューティング](#トラブルシューティング)
+5. [バッチ処理結果のJSON形式](#バッチ処理結果のjson形式)
+6. [環境変数](#環境変数)
+7. [トラブルシューティング](#トラブルシューティング)
 
 ---
 
@@ -480,6 +481,305 @@ Issueコメントにトリガーキーワードと共にJSON設定を投稿：
   "max_concurrent": 5,
   "timeout": 1800000
 }
+```
+
+---
+
+## バッチ処理結果のJSON形式
+
+バッチ処理を `--format json` オプションで実行すると、結果がJSON形式で出力されます。このJSONには、各ジョブの成功・失敗状況、出力パス、エラー情報などが含まれます。
+
+### 基本構造
+
+```json
+{
+  "total": 3,
+  "succeeded": 2,
+  "failed": 1,
+  "results": [
+    {
+      "job_id": "job_abc123",
+      "prompt": "A beautiful sunset over the ocean",
+      "status": "completed",
+      "output_path": "/path/to/output/sunset.png",
+      "duration_ms": 15230
+    },
+    {
+      "job_id": "job_def456",
+      "prompt": "A futuristic city skyline at night",
+      "status": "completed",
+      "output_path": "/path/to/output/city.png",
+      "duration_ms": 18450
+    },
+    {
+      "job_id": "job_ghi789",
+      "prompt": "An invalid prompt that violates safety filters",
+      "status": "failed",
+      "error": "Safety filter triggered: Content policy violation",
+      "duration_ms": 3120
+    }
+  ],
+  "started_at": "2025-01-15T10:00:00.000Z",
+  "finished_at": "2025-01-15T10:00:45.320Z",
+  "total_duration_ms": 45320
+}
+```
+
+### フィールド説明
+
+#### トップレベル
+
+| フィールド | 型 | 説明 |
+|-----------|---|------|
+| `total` | number | 総ジョブ数 |
+| `succeeded` | number | 成功したジョブ数 |
+| `failed` | number | 失敗したジョブ数 |
+| `results` | array | 個別ジョブの結果配列 |
+| `started_at` | string | バッチ処理開始時刻（ISO 8601形式） |
+| `finished_at` | string | バッチ処理終了時刻（ISO 8601形式） |
+| `total_duration_ms` | number | 総実行時間（ミリ秒） |
+
+#### `results` 配列の各要素
+
+| フィールド | 型 | 説明 | 存在条件 |
+|-----------|---|------|---------|
+| `job_id` | string | ジョブの一意識別子 | 常に存在 |
+| `prompt` | string | 画像生成に使用したプロンプト | 常に存在 |
+| `status` | string | ジョブステータス: `completed`, `failed`, `cancelled` | 常に存在 |
+| `output_path` | string | 生成された画像ファイルの絶対パス | `status: "completed"` の場合のみ |
+| `error` | string | エラーメッセージ | `status: "failed"` または `status: "cancelled"` の場合 |
+| `duration_ms` | number | ジョブの実行時間（ミリ秒） | ジョブが完了または失敗した場合 |
+
+### ステータスの種類
+
+| ステータス | 説明 |
+|----------|------|
+| `completed` | ジョブが正常に完了し、画像が生成された |
+| `failed` | ジョブが失敗した（APIエラー、安全性フィルター等） |
+| `cancelled` | タイムアウトなどによりジョブがキャンセルされた |
+
+### JSON出力の取得方法
+
+```bash
+# 結果をJSONファイルに保存
+vertexai-imagen-batch batch-config.json --format json > result.json
+
+# 標準出力にJSON表示
+vertexai-imagen-batch batch-config.json --format json
+
+# jqでパースして成功したジョブのみ表示
+vertexai-imagen-batch batch-config.json --format json | jq '.results[] | select(.status == "completed")'
+
+# 失敗したジョブのエラーメッセージを抽出
+vertexai-imagen-batch batch-config.json --format json | jq '.results[] | select(.status == "failed") | {prompt, error}'
+```
+
+### 実用例
+
+#### すべてが成功した場合
+
+```json
+{
+  "total": 3,
+  "succeeded": 3,
+  "failed": 0,
+  "results": [
+    {
+      "job_id": "job_1705311600000_0",
+      "prompt": "A beautiful sunset over the ocean",
+      "status": "completed",
+      "output_path": "/Users/user/Downloads/vertexai-imagen-files/sunset.png",
+      "duration_ms": 15230
+    },
+    {
+      "job_id": "job_1705311600000_1",
+      "prompt": "A futuristic city skyline at night",
+      "status": "completed",
+      "output_path": "/Users/user/Downloads/vertexai-imagen-files/city.png",
+      "duration_ms": 18450
+    },
+    {
+      "job_id": "job_1705311600000_2",
+      "prompt": "A serene mountain landscape",
+      "status": "completed",
+      "output_path": "/Users/user/Downloads/vertexai-imagen-files/mountain.png",
+      "duration_ms": 16780
+    }
+  ],
+  "started_at": "2025-01-15T10:00:00.000Z",
+  "finished_at": "2025-01-15T10:00:50.460Z",
+  "total_duration_ms": 50460
+}
+```
+
+#### 一部が失敗した場合
+
+```json
+{
+  "total": 4,
+  "succeeded": 2,
+  "failed": 2,
+  "results": [
+    {
+      "job_id": "job_1705311700000_0",
+      "prompt": "A beautiful landscape",
+      "status": "completed",
+      "output_path": "/Users/user/Downloads/vertexai-imagen-files/landscape.png",
+      "duration_ms": 14320
+    },
+    {
+      "job_id": "job_1705311700000_1",
+      "prompt": "Violent content example",
+      "status": "failed",
+      "error": "Safety filter triggered: Content policy violation",
+      "duration_ms": 2150
+    },
+    {
+      "job_id": "job_1705311700000_2",
+      "prompt": "A modern office space",
+      "status": "completed",
+      "output_path": "/Users/user/Downloads/vertexai-imagen-files/office.png",
+      "duration_ms": 16890
+    },
+    {
+      "job_id": "N/A",
+      "prompt": "Invalid configuration example",
+      "status": "failed",
+      "error": "Failed to create job"
+    }
+  ],
+  "started_at": "2025-01-15T11:00:00.000Z",
+  "finished_at": "2025-01-15T11:00:35.420Z",
+  "total_duration_ms": 35420
+}
+```
+
+#### タイムアウトが発生した場合
+
+```json
+{
+  "total": 5,
+  "succeeded": 2,
+  "failed": 3,
+  "results": [
+    {
+      "job_id": "job_1705312000000_0",
+      "prompt": "First image",
+      "status": "completed",
+      "output_path": "/Users/user/Downloads/vertexai-imagen-files/image1.png",
+      "duration_ms": 15000
+    },
+    {
+      "job_id": "job_1705312000000_1",
+      "prompt": "Second image",
+      "status": "completed",
+      "output_path": "/Users/user/Downloads/vertexai-imagen-files/image2.png",
+      "duration_ms": 14500
+    },
+    {
+      "job_id": "job_1705312000000_2",
+      "prompt": "Third image",
+      "status": "cancelled",
+      "error": "Timeout"
+    },
+    {
+      "job_id": "job_1705312000000_3",
+      "prompt": "Fourth image",
+      "status": "cancelled",
+      "error": "Timeout"
+    },
+    {
+      "job_id": "job_1705312000000_4",
+      "prompt": "Fifth image",
+      "status": "cancelled",
+      "error": "Timeout"
+    }
+  ],
+  "started_at": "2025-01-15T12:00:00.000Z",
+  "finished_at": "2025-01-15T12:10:00.000Z",
+  "total_duration_ms": 600000
+}
+```
+
+### プログラムからの利用
+
+結果JSONをプログラムから解析する例：
+
+#### TypeScript/JavaScript
+
+```typescript
+import { readFile } from 'fs/promises';
+
+interface BatchResult {
+  total: number;
+  succeeded: number;
+  failed: number;
+  results: Array<{
+    job_id: string;
+    prompt: string;
+    status: 'completed' | 'failed' | 'cancelled';
+    output_path?: string;
+    error?: string;
+    duration_ms?: number;
+  }>;
+  started_at: string;
+  finished_at: string;
+  total_duration_ms: number;
+}
+
+// JSONファイルを読み込む
+const result: BatchResult = JSON.parse(
+  await readFile('result.json', 'utf-8')
+);
+
+// 成功した画像のパスを取得
+const successfulImages = result.results
+  .filter(r => r.status === 'completed')
+  .map(r => r.output_path);
+
+console.log('Generated images:', successfulImages);
+
+// 失敗した理由を確認
+const failures = result.results
+  .filter(r => r.status === 'failed')
+  .map(r => ({ prompt: r.prompt, error: r.error }));
+
+if (failures.length > 0) {
+  console.error('Failed jobs:', failures);
+}
+```
+
+#### Python
+
+```python
+import json
+
+# JSONファイルを読み込む
+with open('result.json', 'r') as f:
+    result = json.load(f)
+
+# 成功した画像のパスを取得
+successful_images = [
+    r['output_path']
+    for r in result['results']
+    if r['status'] == 'completed'
+]
+
+print(f"Generated {len(successful_images)} images:")
+for path in successful_images:
+    print(f"  - {path}")
+
+# 失敗した理由を確認
+failures = [
+    {'prompt': r['prompt'], 'error': r.get('error', 'Unknown error')}
+    for r in result['results']
+    if r['status'] == 'failed'
+]
+
+if failures:
+    print(f"\n{len(failures)} jobs failed:")
+    for fail in failures:
+        print(f"  - {fail['prompt']}: {fail['error']}")
 ```
 
 ---
