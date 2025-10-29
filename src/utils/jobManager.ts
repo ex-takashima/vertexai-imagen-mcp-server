@@ -29,6 +29,7 @@ export class JobManager {
   private runningJobs: Set<string> = new Set();
   private cancelledJobs: Set<string> = new Set();
   private cleanupInterval: NodeJS.Timeout | null = null;
+  private processingLock: boolean = false;
 
   constructor(
     db: JobDatabase,
@@ -133,27 +134,51 @@ export class JobManager {
 
   /**
    * ジョブキューを処理
+   *
+   * Race condition防止のため、ロック機構を使用して並行実行を防止
    */
   private async processJobs(): Promise<void> {
-    // 同時実行数の制限チェック
-    if (this.runningJobs.size >= this.maxConcurrentJobs) {
+    // ロックチェック：既に処理中の場合は即座にリターン
+    if (this.processingLock) {
       return;
     }
 
-    const pendingJobs = this.db.getRunningJobs();
-    const availableSlots = this.maxConcurrentJobs - this.runningJobs.size;
+    this.processingLock = true;
 
-    const jobsToProcess = pendingJobs
-      .filter(job => job.status === 'pending')
-      .slice(0, availableSlots);
+    try {
+      // 空きスロットがある限り、pendingジョブを1つずつ処理
+      while (this.runningJobs.size < this.maxConcurrentJobs) {
+        const pendingJobs = this.db.getRunningJobs();
 
-    for (const job of jobsToProcess) {
-      this.executeJob(job);
+        // pending状態で、かつまだrunningJobsに登録されていないジョブを検索
+        const job = pendingJobs.find(j =>
+          j.status === 'pending' && !this.runningJobs.has(j.id)
+        );
+
+        if (!job) {
+          // 処理可能なジョブがない場合は終了
+          break;
+        }
+
+        // アトミックに実行中としてマーク（重複実行を防止）
+        this.runningJobs.add(job.id);
+        this.db.updateJobStatus(job.id, 'running', new Date());
+
+        // ジョブを非同期実行（awaitしない = fire and forget）
+        // Promise内部でエラーハンドリングとクリーンアップを実行
+        this.executeJob(job);
+      }
+    } finally {
+      // 必ずロックを解放
+      this.processingLock = false;
     }
   }
 
   /**
    * ジョブを実行
+   *
+   * 注意: processJobs()内で既にrunningJobsへの追加とステータス更新が完了しているため、
+   * このメソッドではそれらの処理は行わない
    */
   private async executeJob(job: Job): Promise<void> {
     const jobId = job.id;
@@ -162,11 +187,11 @@ export class JobManager {
     if (this.cancelledJobs.has(jobId)) {
       this.db.updateJobError(jobId, 'Job cancelled by user');
       this.cancelledJobs.delete(jobId);
+      this.runningJobs.delete(jobId);
+      // 次のジョブを処理
+      this.processJobs();
       return;
     }
-
-    this.runningJobs.add(jobId);
-    this.db.updateJobStatus(jobId, 'running', new Date());
 
     try {
       const context = {
